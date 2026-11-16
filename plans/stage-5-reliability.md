@@ -21,9 +21,9 @@ Raw-layer paths are specified under "Raw layer" in [ARCHITECTURE.md](ARCHITECTUR
 
 ## Part B: Hard deletes
 
-- [ ] **Reproduce.** Add the hard-delete behaviour to the simulator behind a flag `--with-deletes`. Run ticks with it, then `erp run`.
+- [x] **Reproduce.** Add the hard-delete behaviour to the simulator behind a flag `--with-deletes`. Run ticks with it, then `erp run`.
   Done when: the reconciliation test fails for `order_lines`, and you have saved the failing rows as evidence.
-- [ ] **Write `docs/incidents/hard-deletes.md`, first half.** What happened, why a watermark cannot see a deleted row, the evidence.
+- [x] **Write `docs/incidents/hard-deletes.md`, first half.** What happened, why a watermark cannot see a deleted row, the evidence.
   Done when: the document shows the actual mismatch figures.
 - [ ] **Fix with key snapshots.** In the extract snapshot, write every live `id` of each table to `_keys/<table>/latest.parquet`. Staging flags `is_deleted` for an `id` absent from that file. Facts, current-state dimensions, and the warehouse side of `reconciliation_runs` exclude deleted rows; SCD2 dimensions close the deleted row's last interval.
   Done when: the reconciliation test passes with `--with-deletes` running, and a dbt unit test covers a deleted line.

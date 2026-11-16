@@ -151,3 +151,22 @@ def test_shipping_an_order_takes_its_quantities_out_of_stock(seeded_db: Settings
             ).fetchone()
             # Other orders of the same dealer may ship in the same call, so stock can fall more.
             assert after <= max(0, before - quantity)
+
+
+def test_deletes_only_happen_with_the_flag_and_never_empty_an_order(seeded_db: Settings) -> None:
+    with connect(seeded_db) as conn:
+        lines_before = conn.execute("select count(*) from erp.order_lines").fetchone()[0]
+    simulate(seeded_db, ticks=10, seed=3)
+    with connect(seeded_db) as conn:
+        ids = {r[0] for r in conn.execute("select id from erp.order_lines")}
+    assert len(ids) >= lines_before  # nothing is deleted without the flag
+
+    simulate(seeded_db, ticks=20, seed=3, with_deletes=True)
+    with connect(seeded_db) as conn:
+        remaining = {r[0] for r in conn.execute("select id from erp.order_lines")}
+        empty_orders = conn.execute(
+            "select count(*) from erp.sales_orders o"
+            " where not exists (select 1 from erp.order_lines l where l.order_id = o.id)"
+        ).fetchone()[0]
+    assert ids - remaining  # some earlier lines are gone
+    assert empty_orders == 0

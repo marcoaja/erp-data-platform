@@ -42,6 +42,9 @@ def build_parser() -> argparse.ArgumentParser:
     mode.add_argument("--ticks", type=int, help="run N ticks and exit")
     mode.add_argument("--interval", type=float, help="tick forever, S seconds apart")
     sim.add_argument("--seed", type=int, help="fix the random generator")
+    sim.add_argument(
+        "--with-deletes", action="store_true", help="also hard-delete lines from open orders"
+    )
     commands.add_parser("extract", help="copy changed ERP rows into the raw layer")
     commands.add_parser("fx", help="fetch daily exchange rates into the raw layer")
     commands.add_parser("transform", help="build the warehouse with dbt")
@@ -63,7 +66,13 @@ def main(argv: Sequence[str] | None = None) -> None:
         elif args.command == "seed":
             seed(load_settings(), seed=args.seed)
         elif args.command == "simulate":
-            simulate(load_settings(), ticks=args.ticks, interval=args.interval, seed=args.seed)
+            simulate(
+                load_settings(),
+                ticks=args.ticks,
+                interval=args.interval,
+                seed=args.seed,
+                with_deletes=args.with_deletes,
+            )
         elif args.command == "extract":
             extract(load_settings())
         elif args.command == "fx":

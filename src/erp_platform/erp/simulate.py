@@ -191,6 +191,25 @@ def correct_line_quantities(conn: psycopg.Connection, rng: random.Random) -> int
     return len(chosen)
 
 
+def delete_order_lines(conn: psycopg.Connection, rng: random.Random) -> int:
+    """Hard-delete the last line of a few open orders that keep at least one other line."""
+    with conn.transaction():
+        candidates = [
+            r[0]
+            for r in conn.execute(
+                "select l.id from erp.order_lines l join erp.sales_orders o on o.id = l.order_id"
+                " where o.status in ('placed', 'confirmed')"
+                " and l.line_number > 1"
+                " and l.line_number = (select max(x.line_number) from erp.order_lines x"
+                "                     where x.order_id = l.order_id)"
+                " order by l.id"
+            )
+        ]
+        chosen = rng.sample(candidates, k=min(len(candidates), rng.randint(1, 3)))
+        conn.execute("delete from erp.order_lines where id = any(%s::bigint[])", (chosen,))
+    return len(chosen)
+
+
 def change_part_prices(conn: psycopg.Connection, rng: random.Random) -> int:
     with conn.transaction():
         parts = conn.execute("select id, list_price_jpy from erp.parts order by id").fetchall()
@@ -218,7 +237,12 @@ def move_dealer(conn: psycopg.Connection, rng: random.Random) -> int:
     return 1
 
 
-def tick(conn: psycopg.Connection, rng: random.Random, state: SimulationState) -> None:
+def tick(
+    conn: psycopg.Connection,
+    rng: random.Random,
+    state: SimulationState,
+    with_deletes: bool = False,
+) -> None:
     """One business tick; every behaviour commits in its own transaction."""
     state.tick_number += 1
     log.info(
@@ -232,6 +256,8 @@ def tick(conn: psycopg.Connection, rng: random.Random, state: SimulationState) -
         move_dealer(conn, rng),
         replenish_stock(conn, rng, state),
     )
+    if with_deletes:
+        log.info("tick deleted_lines=%d", delete_order_lines(conn, rng))
 
 
 def simulate(
@@ -240,6 +266,7 @@ def simulate(
     ticks: int | None = None,
     interval: float | None = None,
     seed: int | None = None,
+    with_deletes: bool = False,
 ) -> None:
     """Run `ticks` ticks, or tick every `interval` seconds until SIGINT or SIGTERM."""
     if (ticks is None) == (interval is None):
@@ -253,7 +280,7 @@ def simulate(
     try:
         with connect(settings, autocommit=True) as conn:
             while not stop.is_set() and (ticks is None or done < ticks):
-                tick(conn, rng, state)
+                tick(conn, rng, state, with_deletes)
                 done += 1
                 if interval is not None:
                     stop.wait(interval)
