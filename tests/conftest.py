@@ -9,6 +9,7 @@ from psycopg import sql
 from erp_platform.config import Settings, load_settings
 from erp_platform.db import connect
 from erp_platform.erp.migrate import migrate
+from erp_platform.erp.seed import seed
 
 
 @contextmanager
@@ -50,4 +51,18 @@ def empty_db(base_settings: Settings) -> Iterator[Settings]:
 @pytest.fixture
 def migrated_db(base_settings: Settings, migrated_template: Settings) -> Iterator[Settings]:
     with temp_database(base_settings, template=migrated_template.postgres_db) as settings:
+        yield settings
+
+
+@pytest.fixture(scope="session")
+def seeded_template(base_settings: Settings, migrated_template: Settings) -> Iterator[Settings]:
+    with temp_database(base_settings, template=migrated_template.postgres_db) as settings:
+        seed(settings, seed=42)
+        yield settings
+
+
+@pytest.fixture
+def seeded_db(base_settings: Settings, seeded_template: Settings) -> Iterator[Settings]:
+    """A private copy of the seeded database that a test may change."""
+    with temp_database(base_settings, template=seeded_template.postgres_db) as settings:
         yield settings

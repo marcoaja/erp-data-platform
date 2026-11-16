@@ -6,6 +6,8 @@ from collections.abc import Sequence
 from erp_platform.config import Settings, load_settings
 from erp_platform.db import connect
 from erp_platform.erp.migrate import migrate
+from erp_platform.erp.seed import seed
+from erp_platform.erp.simulate import simulate
 
 log = logging.getLogger("erp_platform")
 
@@ -28,6 +30,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     db.add_parser("ping", help="connect and print the Postgres version")
     db.add_parser("migrate", help="apply pending SQL migrations")
+
+    seed_cmd = commands.add_parser("seed", help="load master data and 90 days of orders")
+    seed_cmd.add_argument("--seed", type=int, default=42, help="random seed (default 42)")
+
+    sim = commands.add_parser("simulate", help="run business ticks against the ERP")
+    mode = sim.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--ticks", type=int, help="run N ticks and exit")
+    mode.add_argument("--interval", type=float, help="tick forever, S seconds apart")
+    sim.add_argument("--seed", type=int, help="fix the random generator")
     return parser
 
 
@@ -42,6 +53,10 @@ def main(argv: Sequence[str] | None = None) -> None:
                 db_ping(load_settings())
             elif args.db_command == "migrate":
                 migrate(load_settings())
+        elif args.command == "seed":
+            seed(load_settings(), seed=args.seed)
+        elif args.command == "simulate":
+            simulate(load_settings(), ticks=args.ticks, interval=args.interval, seed=args.seed)
     except Exception:
         log.exception("command failed: %s", args.command)
         sys.exit(1)
