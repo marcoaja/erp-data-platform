@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -34,7 +35,13 @@ def test_renders_every_section_from_published_files(
         "Reconciliation history (newest 20 runs)",
     ]
     assert len(at.dataframe) == 3
-    assert len(at.get("vega_lite_chart")) == 1
+    charts = at.get("vega_lite_chart")
+    assert len(charts) == 1
+    spec = json.loads(charts[0].proto.spec)
+    categories = spec["encoding"]["y"]  # horizontal: the machine models run down the y axis
+    assert categories["sort"] == {"field": "sales_jpy", "order": "descending"}
+    assert categories["title"] == "Machine model"
+    assert spec["encoding"]["x"]["title"] == "Sales (JPY)"
     assert at.metric[0].label == "Last successful run (UTC)"
     assert not at.warning  # a run that just finished is not stale
 

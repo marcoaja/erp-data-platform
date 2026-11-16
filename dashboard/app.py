@@ -65,7 +65,9 @@ def show_last_run(serving_dir: Path, interval_minutes: int) -> None:
     if not marker.exists():
         st.warning("No successful run recorded yet.")
         return
-    finished_at = datetime.fromisoformat(json.loads(marker.read_text())["finished_at"])
+    finished_at = datetime.fromisoformat(json.loads(marker.read_text())["finished_at"]).astimezone(
+        UTC
+    )
     age = datetime.now(UTC) - finished_at
     st.metric("Last successful run (UTC)", finished_at.strftime("%Y-%m-%d %H:%M:%S"))
     if age > 2 * timedelta(minutes=interval_minutes):
@@ -97,8 +99,16 @@ st.subheader("Q2. How long does order fulfilment take, per dealer and per region
 st.dataframe(conn.execute(Q2).df(), hide_index=True, width="stretch")
 
 st.subheader("Q3. Parts sales per machine model (JPY)")
+# Streamlit sorts a bar chart's categories alphabetically unless told which column to sort by.
 st.bar_chart(
-    conn.execute(Q3).df(), x="machine_model", y="sales_jpy", color=BAR_COLOUR, horizontal=True
+    conn.execute(Q3).df(),
+    x="machine_model",
+    y="sales_jpy",
+    x_label="Machine model",
+    y_label="Sales (JPY)",
+    color=BAR_COLOUR,
+    horizontal=True,
+    sort="-sales_jpy",
 )
 
 st.subheader("Reconciliation history (newest 20 runs)")
