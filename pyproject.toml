@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Simulated ERP feeding an incremental pipeline into a dbt-modelled warehouse"
 requires-python = ">=3.12"
 dependencies = [
+    "faker>=40.54.0",
     "psycopg[binary]>=3.3.9",
 ]
 
@@ -25,3 +26,7 @@ dev = [
     "pytest>=9.2.0",
     "ruff>=0.17.5",
 ]
+
+[tool.pytest.ini_options]
+# The system temp directory is not writable on every development machine.
+addopts = "--basetemp=.pytest_tmp"

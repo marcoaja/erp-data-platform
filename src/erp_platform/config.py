@@ -10,6 +10,8 @@ class Settings:
     postgres_db: str
     postgres_user: str
     postgres_password: str
+    erp_reader_user: str
+    erp_reader_password: str
 
 
 def load_settings(env: Mapping[str, str] | None = None) -> Settings:
@@ -28,4 +30,6 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         postgres_db=require("POSTGRES_DB"),
         postgres_user=require("POSTGRES_USER"),
         postgres_password=require("POSTGRES_PASSWORD"),
+        erp_reader_user=require("ERP_READER_USER"),
+        erp_reader_password=require("ERP_READER_PASSWORD"),
     )

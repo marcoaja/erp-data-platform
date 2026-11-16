@@ -8,6 +8,8 @@ ENV = {
     "POSTGRES_DB": "erp",
     "POSTGRES_USER": "erp",
     "POSTGRES_PASSWORD": "secret",
+    "ERP_READER_USER": "erp_reader",
+    "ERP_READER_PASSWORD": "reader_secret",
 }
 
 
@@ -15,6 +17,7 @@ def test_load_settings_reads_environment() -> None:
     settings = load_settings(ENV)
     assert settings.postgres_port == 5432
     assert settings.postgres_db == "erp"
+    assert settings.erp_reader_user == "erp_reader"
 
 
 def test_missing_variable_is_named_in_error() -> None:

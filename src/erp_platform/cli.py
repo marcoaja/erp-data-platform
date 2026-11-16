@@ -3,22 +3,15 @@ import logging
 import sys
 from collections.abc import Sequence
 
-import psycopg
-
 from erp_platform.config import Settings, load_settings
+from erp_platform.db import connect
+from erp_platform.erp.migrate import migrate
 
 log = logging.getLogger("erp_platform")
 
 
 def db_ping(settings: Settings) -> None:
-    with psycopg.connect(
-        host=settings.postgres_host,
-        port=settings.postgres_port,
-        dbname=settings.postgres_db,
-        user=settings.postgres_user,
-        password=settings.postgres_password,
-        connect_timeout=5,
-    ) as conn:
+    with connect(settings) as conn:
         row = conn.execute("select version()").fetchone()
     if row is None:
         raise RuntimeError("select version() returned no row")
@@ -34,6 +27,7 @@ def build_parser() -> argparse.ArgumentParser:
         dest="db_command", required=True
     )
     db.add_parser("ping", help="connect and print the Postgres version")
+    db.add_parser("migrate", help="apply pending SQL migrations")
     return parser
 
 
@@ -43,8 +37,11 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
     args = build_parser().parse_args(argv)
     try:
-        if (args.command, args.db_command) == ("db", "ping"):
-            db_ping(load_settings())
+        if args.command == "db":
+            if args.db_command == "ping":
+                db_ping(load_settings())
+            elif args.db_command == "migrate":
+                migrate(load_settings())
     except Exception:
         log.exception("command failed: %s", args.command)
         sys.exit(1)
