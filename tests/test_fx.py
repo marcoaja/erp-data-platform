@@ -23,6 +23,7 @@ def fx_settings(seeded_db: Settings, tmp_path: Path, fx_server: FakeFrankfurter)
         seeded_db,
         raw_uri=str(tmp_path / "raw"),
         warehouse_path=str(tmp_path / "warehouse.duckdb"),
+        serving_dir=str(tmp_path / "serving"),
         fx_api_url=fx_server.url,
     )
 
@@ -131,6 +132,7 @@ def test_unreachable_api_does_not_stop_erp_run(
         "POSTGRES_DB": down.postgres_db,
         "RAW_URI": down.raw_uri,
         "WAREHOUSE_PATH": down.warehouse_path,
+        "SERVING_DIR": down.serving_dir,
         "FX_API_URL": down.fx_api_url,
     }.items():
         monkeypatch.setenv(name, value)

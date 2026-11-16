@@ -80,12 +80,13 @@ def fx_server() -> Iterator[FakeFrankfurter]:
 
 @pytest.fixture
 def source(seeded_db: Settings, tmp_path: Path) -> Settings:
-    """Seeded ERP copy with a private raw layer and warehouse file, so no test can reach the
-    developer's WAREHOUSE_PATH."""
+    """Seeded ERP copy with a private raw layer, warehouse file and serving directory, so no
+    test can reach the developer's WAREHOUSE_PATH or SERVING_DIR."""
     settings = dataclasses.replace(
         seeded_db,
         raw_uri=str(tmp_path / "raw"),
         warehouse_path=str(tmp_path / "warehouse.duckdb"),
+        serving_dir=str(tmp_path / "serving"),
     )
     assert Path(settings.warehouse_path).is_relative_to(tmp_path)
     return settings

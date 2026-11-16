@@ -65,7 +65,7 @@ plans/
 | `erp transform` | Runs `dbt build` for the configured target | 3 |
 | `erp run` | Runs the pipeline steps in order (extract, fx, transform); exits non-zero on the first hard failure; an `erp fx` failure only logs a warning | 3 |
 | `erp fx` | Fetches daily exchange rates into the raw layer | 4 |
-| `erp publish` | Exports marts to serving Parquet | 6 |
+| `erp publish` | Exports the dashboard's marts to serving Parquet and records the finish time | 6 |
 | `erp snowflake-load` | Copies raw Parquet from the bucket into Snowflake `RAW` tables | 7 |
 
 Local development runs natively with `uv run --env-file .env erp <command>` against Postgres in Docker.
@@ -83,7 +83,8 @@ Every variable is read in `config.py` and listed in `.env.example`.
 | `S3_ENDPOINT_URL`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_REGION` | Object storage credentials; unset for local paths. Leaving the endpoint unset targets AWS S3 |
 | `EXTRACT_LOOKBACK_SECONDS` | Overlap subtracted from the watermark; default 300 |
 | `WAREHOUSE_PATH` | DuckDB file written by dbt; required |
-| `SERVING_DIR` | Directory of published mart Parquet read by the dashboard |
+| `SERVING_DIR` | Directory of published mart Parquet read by the dashboard; default `data/serving` |
+| `SCHEDULE_INTERVAL_MINUTES` | Minutes between scheduled runs; default 30. The dashboard warns when the last success is older than twice this |
 | `DBT_TARGET` | `local`, `r2`, or `snowflake`; default `local` (only `local` exists until stage 6) |
 | `FX_API_URL` | Exchange-rate endpoint; default `https://api.frankfurter.dev/v2/rates`. Tests point it at a local server |
 | `ALERT_WEBHOOK_URL` | Discord webhook; alerting is skipped when unset |
@@ -200,7 +201,7 @@ Models that need the current day call the `today()` macro (the UTC calendar day)
 
 ## Serving
 
-DuckDB allows one writing process per database file, so the dashboard never opens the warehouse file. `erp publish` exports the marts the dashboard needs to `<SERVING_DIR>/<model>.parquet`, writing to a temporary name and renaming, and the dashboard reads those files with an in-memory DuckDB connection.
+DuckDB allows one writing process per database file, so the dashboard never opens the warehouse file. `erp publish` exports the marts the dashboard needs to `<SERVING_DIR>/<model>.parquet`, writing to a temporary name and renaming, and the dashboard reads those files with an in-memory DuckDB connection. The published marts are `rpt_stockout_risk`, `fct_orders`, `dim_dealer`, `fct_sales`, `dim_part`, and `reconciliation_runs`. After the last file, publish writes `<SERVING_DIR>/last_success.json` (`{"finished_at": <UTC ISO>}`), the time the dashboard reports as the last successful run.
 
 ## Orchestration and failure handling
 

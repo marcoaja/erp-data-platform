@@ -1,6 +1,6 @@
 import pytest
 
-from erp_platform.config import load_settings
+from erp_platform.config import load_dashboard_settings, load_settings
 
 ENV = {
     "POSTGRES_HOST": "localhost",
@@ -47,3 +47,13 @@ def test_dbt_target_defaults_to_local() -> None:
 def test_fx_api_url_defaults_to_frankfurter_and_can_be_overridden() -> None:
     assert load_settings(ENV).fx_api_url == "https://api.frankfurter.dev/v2/rates"
     assert load_settings({**ENV, "FX_API_URL": "http://x/rates"}).fx_api_url == "http://x/rates"
+
+
+def test_serving_dir_and_schedule_interval_have_defaults() -> None:
+    assert load_settings(ENV).serving_dir == "data/serving"
+    assert load_settings({**ENV, "SERVING_DIR": "/srv/x"}).serving_dir == "/srv/x"
+    dashboard = load_dashboard_settings({})
+    assert (dashboard.serving_dir, dashboard.schedule_interval_minutes) == ("data/serving", 30)
+    assert (
+        load_dashboard_settings({"SCHEDULE_INTERVAL_MINUTES": "5"}).schedule_interval_minutes == 5
+    )

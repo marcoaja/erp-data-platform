@@ -7,6 +7,7 @@ from pathlib import Path
 from erp_platform.config import Settings
 from erp_platform.ingestion.extract import extract
 from erp_platform.ingestion.fx import FxUnavailable, fx
+from erp_platform.publish import publish
 
 log = logging.getLogger(__name__)
 
@@ -61,3 +62,4 @@ def run(settings: Settings) -> None:
         # Soft failure: the marts forward-fill from the rates already stored.
         log.warning("fx failed, continuing on the rates already stored: %s", exc)
     transform(settings)
+    publish(settings)

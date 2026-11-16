@@ -11,6 +11,7 @@ from erp_platform.erp.simulate import simulate
 from erp_platform.ingestion.extract import extract
 from erp_platform.ingestion.fx import fx
 from erp_platform.pipeline import run, transform
+from erp_platform.publish import publish
 
 log = logging.getLogger("erp_platform")
 
@@ -48,7 +49,10 @@ def build_parser() -> argparse.ArgumentParser:
     commands.add_parser("extract", help="copy changed ERP rows into the raw layer")
     commands.add_parser("fx", help="fetch daily exchange rates into the raw layer")
     commands.add_parser("transform", help="build the warehouse with dbt")
-    commands.add_parser("run", help="extract, fx, then transform; stops at the first hard failure")
+    commands.add_parser("publish", help="export the dashboard's marts to SERVING_DIR")
+    commands.add_parser(
+        "run", help="extract, fx, transform, then publish; stops at the first hard failure"
+    )
     return parser
 
 
@@ -79,6 +83,8 @@ def main(argv: Sequence[str] | None = None) -> None:
             fx(load_settings())
         elif args.command == "transform":
             transform(load_settings())
+        elif args.command == "publish":
+            publish(load_settings())
         elif args.command == "run":
             run(load_settings())
     except Exception:
