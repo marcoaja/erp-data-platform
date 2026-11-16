@@ -1,5 +1,6 @@
 import dataclasses
 import threading
+import time
 from pathlib import Path
 
 import duckdb
@@ -41,6 +42,11 @@ def test_reader_never_sees_a_partial_file_while_publishing(big_warehouse: Settin
         while not stop.is_set():
             try:
                 rows = pq.read_table(target).num_rows
+            except PermissionError:
+                # Windows refuses to open a file while publish is renaming over it. That is a
+                # busy file, not a partial one, so try again.
+                time.sleep(0.01)
+                continue
             except Exception as exc:  # a truncated file raises; record it for the assertion
                 errors.append(repr(exc))
                 return
