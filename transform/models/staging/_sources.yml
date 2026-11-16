@@ -1,0 +1,14 @@
+version: 2
+
+sources:
+  - name: erp
+    description: Append-only Parquet written by `erp extract`; one row per extracted version.
+    meta:
+      # union_by_name lets files written before and after a source schema change read together.
+      external_location: "read_parquet('{{ env_var('RAW_URI', 'data/raw') }}/{name}/*/*.parquet', union_by_name = true)"
+    tables:
+      - name: dealers
+      - name: customers
+      - name: parts
+      - name: sales_orders
+      - name: order_lines

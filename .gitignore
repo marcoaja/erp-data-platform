@@ -7,3 +7,5 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .pytest_tmp/
+transform/dbt_packages/
+transform/.user.yml

@@ -1,0 +1,20 @@
+name: erp_warehouse
+version: "0.1.0"
+config-version: 2
+profile: erp_warehouse
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+packages-install-path: dbt_packages
+target-path: target
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  erp_warehouse:
+    staging:
+      +schema: staging
+      +materialized: table
+    marts:
+      +schema: marts
+      +materialized: table

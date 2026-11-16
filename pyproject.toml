@@ -4,6 +4,9 @@ version = "0.1.0"
 description = "Simulated ERP feeding an incremental pipeline into a dbt-modelled warehouse"
 requires-python = ">=3.12"
 dependencies = [
+    "dbt-core>=1.12,<2",
+    "dbt-duckdb>=1.11,<2",
+    "duckdb>=2.0.0",
     "faker>=40.54.0",
     "psycopg[binary]>=3.3.9",
     "pyarrow>=26.0.1",
@@ -26,6 +29,8 @@ select = ["E", "F", "I", "B", "UP", "SIM"]
 dev = [
     "pytest>=9.2.0",
     "ruff>=0.17.5",
+    "sqlfluff>=4.5.0",
+    "sqlfluff-templater-dbt>=4.5.0",
 ]
 
 [tool.pytest.ini_options]
