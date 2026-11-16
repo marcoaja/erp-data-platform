@@ -2,6 +2,7 @@ import logging
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 
 import psycopg
 import pyarrow as pa
@@ -28,6 +29,18 @@ _SIMPLE_TYPES: dict[str, pa.DataType] = {
     "date": pa.date32(),
     "timestamptz": pa.timestamp("us", tz="UTC"),
 }
+
+
+# Metrics beyond the row count, as SQL aggregates. `reconciliation_runs` recomputes the same
+# expressions from staging, so a change here needs the same change there.
+CONTROL_METRICS: dict[str, dict[str, str]] = {
+    "order_lines": {
+        "sum_quantity": "sum(quantity)",
+        "sum_amount_local": "sum(quantity * unit_price)",
+    },
+    "inventory": {"sum_quantity_on_hand": "sum(quantity_on_hand)"},
+}
+CONTROL_TOTALS_TYPE = pa.decimal128(38, 2)
 
 
 @dataclass(frozen=True)
@@ -75,6 +88,10 @@ def extract(settings: Settings) -> Extraction:
             watermark = stored.get(table)
             since = datetime.fromisoformat(watermark) - lookback if watermark else None
             rows[table] = _extract_table(conn, storage, table, since, cutoff, run_id, extracted_at)
+        totals = _control_totals(conn, run_id)
+        storage.write_parquet(
+            f"control_totals/extract_date={cutoff:%Y-%m-%d}/{run_id}.parquet", totals
+        )
 
     # The state file is the commit point: a crash before this line re-extracts the same window.
     storage.write_json(WATERMARKS, {**stored, **{t: cutoff.isoformat() for t in TABLES}})
@@ -125,3 +142,23 @@ def _extract_table(
     storage.write_parquet(path, table_data)
     log.info("extract table=%s rows=%d file=%s", table, len(records), path)
     return len(records)
+
+
+def _control_totals(conn: psycopg.Connection, run_id: str) -> pa.Table:
+    """Source totals taken in the extract snapshot, for `reconciliation_runs` to compare against."""
+    records: list[tuple[str, str, Decimal]] = []
+    for table in TABLES:
+        metrics = {"row_count": "count(*)", **CONTROL_METRICS.get(table, {})}
+        # Table and expressions are module constants, never input.
+        select = ", ".join(f"coalesce({expr}, 0) as {name}" for name, expr in metrics.items())
+        row = conn.execute(f"select {select} from erp.{table}").fetchone()
+        records += [(table, name, Decimal(value)) for name, value in zip(metrics, row, strict=True)]
+    log.info("control totals run_id=%s metrics=%d", run_id, len(records))
+    return pa.table(
+        {
+            "run_id": pa.array([run_id] * len(records), type=pa.string()),
+            "table_name": pa.array([r[0] for r in records], type=pa.string()),
+            "metric": pa.array([r[1] for r in records], type=pa.string()),
+            "value": pa.array([r[2] for r in records], type=CONTROL_TOTALS_TYPE),
+        }
+    )

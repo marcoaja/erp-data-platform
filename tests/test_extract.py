@@ -231,3 +231,27 @@ def test_table_added_later_loads_in_full_without_rereading_the_others(source: Se
     assert len(new_part_files) == 2
     assert storage.read_parquet(new_part_files[1]).num_rows == 1
     assert set(storage.read_json(WATERMARKS)) == set(TABLES)
+
+
+def test_control_totals_match_the_same_queries_run_in_one_transaction(source: Settings) -> None:
+    result = extract(source)
+    storage = open_storage(source)
+    (file,) = [f for f in storage.list_files("control_totals") if f.endswith(".parquet")]
+    assert file.endswith(f"/{result.run_id}.parquet")
+    written = {
+        (r["table_name"], r["metric"]): r["value"] for r in storage.read_parquet(file).to_pylist()
+    }
+
+    queries = {(table, "row_count"): f"select count(*) from erp.{table}" for table in TABLES} | {
+        ("order_lines", "sum_quantity"): "select sum(quantity) from erp.order_lines",
+        (
+            "order_lines",
+            "sum_amount_local",
+        ): "select sum(quantity * unit_price) from erp.order_lines",
+        ("inventory", "sum_quantity_on_hand"): "select sum(quantity_on_hand) from erp.inventory",
+    }
+    with connect(source) as conn, conn.transaction():
+        by_hand = {key: conn.execute(query).fetchone()[0] for key, query in queries.items()}
+    assert written == by_hand
+    assert {r["run_id"] for r in storage.read_parquet(file).to_pylist()} == {result.run_id}
+    assert written[("order_lines", "sum_amount_local")] > 0
