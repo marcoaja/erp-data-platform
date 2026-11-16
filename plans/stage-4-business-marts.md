@@ -26,7 +26,7 @@ Model grains are specified under "Marts" in [ARCHITECTURE.md](ARCHITECTURE.md); 
   Done when: `unique` on (`dealer_id`, `part_id`, `date_key`) passes.
 - [x] **Write `rpt_stockout_risk`.** Days of cover is current stock divided by average daily quantity sold over the trailing 28 days. A pair with no sales in that window has null days of cover and is not at risk.
   Done when: a unit test covers a part at risk, a part with ample stock, and a part with no sales.
-- [ ] **Answer the questions.** Three files in `transform/analyses/`, one per business question, each a single query over marts.
+- [x] **Answer the questions.** Three files in `transform/analyses/`, one per business question, each a single query over marts.
   Done when: each compiled query runs against the warehouse and returns rows.
 - [ ] **Update the README** with the three questions and the mart that answers each.
   Done when: the README names a model for every question.
