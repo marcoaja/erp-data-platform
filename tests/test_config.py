@@ -10,6 +10,7 @@ ENV = {
     "POSTGRES_PASSWORD": "secret",
     "ERP_READER_USER": "erp_reader",
     "ERP_READER_PASSWORD": "reader_secret",
+    "RAW_URI": "data/raw",
 }
 
 
@@ -29,3 +30,9 @@ def test_missing_variable_is_named_in_error() -> None:
 def test_first_missing_variable_is_reported() -> None:
     with pytest.raises(RuntimeError, match="POSTGRES_HOST"):
         load_settings({})
+
+
+def test_optional_settings_default_when_unset() -> None:
+    settings = load_settings(ENV)
+    assert settings.extract_lookback_seconds == 300
+    assert settings.s3_endpoint_url is None
