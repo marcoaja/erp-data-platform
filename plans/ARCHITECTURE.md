@@ -63,7 +63,7 @@ plans/
 | `erp simulate --ticks N` / `--interval S` | Runs N business ticks and exits, or loops forever with S seconds between ticks | 1 |
 | `erp extract` | Writes changed rows to the raw layer and advances the watermark | 2 |
 | `erp transform` | Runs `dbt build` for the configured target | 3 |
-| `erp run` | Runs the pipeline steps in order; exits non-zero on the first failure | 3 |
+| `erp run` | Runs the pipeline steps in order (extract, fx, transform); exits non-zero on the first hard failure; an `erp fx` failure only logs a warning | 3 |
 | `erp fx` | Fetches daily exchange rates into the raw layer | 4 |
 | `erp publish` | Exports marts to serving Parquet | 6 |
 | `erp snowflake-load` | Copies raw Parquet from the bucket into Snowflake `RAW` tables | 7 |
@@ -85,6 +85,7 @@ Every variable is read in `config.py` and listed in `.env.example`.
 | `WAREHOUSE_PATH` | DuckDB file written by dbt; required |
 | `SERVING_DIR` | Directory of published mart Parquet read by the dashboard |
 | `DBT_TARGET` | `local`, `r2`, or `snowflake`; default `local` (only `local` exists until stage 6) |
+| `FX_API_URL` | Exchange-rate endpoint; default `https://api.frankfurter.dev/v2/rates`. Tests point it at a local server |
 | `ALERT_WEBHOOK_URL` | Discord webhook; alerting is skipped when unset |
 | `SNOWFLAKE_ACCOUNT`, `SNOWFLAKE_USER`, `SNOWFLAKE_PRIVATE_KEY_PATH` | Stage 7 only |
 
@@ -129,6 +130,7 @@ Append-only Parquet, written by `erp extract`.
 
 ```
 <RAW_URI>/<table>/extract_date=YYYY-MM-DD/<run_id>.parquet   changed rows, all source columns
+<RAW_URI>/fx_rates/extract_date=YYYY-MM-DD/<run_id>.parquet   daily JPY-based rates (stage 4): date, base, quote, rate, _run_id, _extracted_at
 <RAW_URI>/_keys/<table>/latest.parquet                       every live id (stage 5), overwritten per run
 <RAW_URI>/control_totals/extract_date=YYYY-MM-DD/<run_id>.parquet   (stage 5)
 <RAW_URI>/_state/watermarks.json                             {"<table>": "<cutoff ISO timestamp>"}
@@ -176,14 +178,14 @@ One model per source table, named `stg_erp__<table>`, at **version grain**: one 
 | `dim_customer` | one row per customer | current values only | 3 |
 | `fct_sales` | one row per order line | dealer and part keys resolved as of `ordered_at`; `amount_local`; `amount_jpy` from stage 4 | 3 |
 | `fct_orders` | one row per order | status, hours from order to shipment and to delivery | 3 |
-| `fx_rates_daily` | one row per currency per day | missing days filled forward from the last published rate | 4 |
-| `fct_inventory_daily` | one row per dealer, part, day | last known stock per day | 4 |
-| `rpt_stockout_risk` | one row per dealer and part | days of cover from trailing 28-day sales; at risk below 7 | 4 |
+| `fx_rates_daily` | one row per currency per day | `date_day`, `currency_code`, `rate` (units per JPY), `source_date`; from the first published rate to today, missing days filled forward, plus a JPY row with rate 1 | 4 |
+| `fct_inventory_daily` | one row per dealer, part, day | `dealer_id`, `part_id`, `date_key`, `quantity_on_hand`, `reorder_point`; last known stock per day from the stock row's creation to today; natural ids, not SCD2 keys | 4 |
+| `rpt_stockout_risk` | one row per dealer and part | days of cover from trailing 28-day sales, cancelled orders excluded; at risk below 7; null cover (no sales) is not at risk | 4 |
 | `reconciliation_runs` | one row per run and table | source control totals against warehouse totals, `is_match` | 5 |
 
 SCD2 dimensions are derived from the version history in staging with window functions: `valid_from` is the version's `updated_at`, `valid_to` is the next version's `updated_at`. The first known version of a row is valid from its `created_at`. Surrogate keys hash (`id`, `valid_from`). The current version has `valid_to is null`; an as-of join tests `valid_from <= t and (valid_to is null or t < valid_to)`.
 
-Staging and marts are materialized as tables and rebuilt in full on every run, in schemas `staging` and `marts` (a `generate_schema_name` override stops dbt prefixing them with the target schema). The DuckDB session runs in UTC so that casting a timestamp to a date is machine-independent; the Snowflake profile must do the same.
+Models that need the current day call the `today()` macro (the UTC calendar day), which unit tests override to pin the date. Staging and marts are materialized as tables and rebuilt in full on every run, in schemas `staging` and `marts` (a `generate_schema_name` override stops dbt prefixing them with the target schema). The DuckDB session runs in UTC so that casting a timestamp to a date is machine-independent; the Snowflake profile must do the same.
 
 ### Tests
 

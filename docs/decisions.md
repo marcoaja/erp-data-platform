@@ -128,6 +128,54 @@ Entry format: date, decision, alternatives considered, reason.
 - **Alternatives.** Derive the range from the data; add weekday and fiscal columns.
 - **Reason.** A fixed range never makes a fact miss its date after a late arrival. Extra columns wait for a stage that needs them.
 
+## 2026-11-16: Inventory is seeded from parts each dealer has ordered; replenishment state is derived
+
+- **Decision.** `erp seed` stocks each dealer with up to 60 parts it has ordered in the seeded history, at 20% to 300% of a reorder point of 5 to 20 units. The simulator decrements stock when an order ships (never below zero) and restocks a row below its reorder point 3 to 6 ticks after it was first seen low. The pending deliveries live in memory and are rediscovered from stock levels each tick.
+- **Alternatives.** Random parts per dealer; a `replenish_at` column or a purchase-order table.
+- **Reason.** Sales are spread over 15,000 dealer and part pairs, so stock on random parts would never show a cover below seven days. Stocking sold parts makes the stockout report non-trivial. A restart loses no delivery because the pending set is recomputed from the rows, and the contract keeps its four columns.
+
+## 2026-11-16: Extract treats a new table as a missing watermark
+
+- **Decision.** `inventory` joined `TABLES` with no other change. A table without a watermark is read in full, and the other tables keep reading from their own watermarks.
+- **Alternatives.** A one-off backfill command.
+- **Reason.** The stage 2 protocol already defines this case, and a test now pins it.
+
+## 2026-11-16: `erp fx` keeps its own state in the raw files, and revises seven days back
+
+- **Decision.** The next start date is the latest `date` found in `fx_rates/`, minus seven days; the first run starts at the earliest `ordered_at` (UTC date). A run that would reuse a committed file name waits for the next second. `rate` is stored as `decimal(18,8)`, parsed from the JSON as `Decimal`. A request has a 10 second timeout and one retry; failure raises `FxUnavailable`, and only `erp run` turns it into a warning.
+- **Alternatives.** A date in `watermarks.json`; floats.
+- **Reason.** `watermarks.json` holds cutoff timestamps that `erp extract` turns into run ids, so a date there would corrupt that logic. The seven-day re-read is shorter than the first run's window, so overwriting a committed file would lose dates, hence the wait. Exact decimals keep binary float noise out of reported amounts.
+
+## 2026-11-16: A first `erp run` with no rates fails; later runs forward-fill
+
+- **Decision.** If the API is down before any rate has ever been stored, `dbt build` fails because the `fx_rates` source matches no files. The soft failure applies once at least one rate file exists.
+- **Alternatives.** Create an empty typed file on startup so the model builds with no rates.
+- **Reason.** With no rates every `amount_jpy` is null, so the pipeline cannot give correct output anyway and failing loudly is the honest result.
+
+## 2026-11-16: The real API publishes weekend rates; forward filling still matters
+
+- **Decision.** `fx_rates_daily` forward-fills from the last published rate through today, as specified.
+- **Alternatives.** Rely on the API having every day.
+- **Reason.** A live request showed Frankfurter returns every calendar day, including weekends, but today's rate may not exist yet and a revision window may leave gaps. The local fake server in the tests skips weekends so forward filling is exercised.
+
+## 2026-11-16: `today()` macro and a UTC-day spine bounded by today
+
+- **Decision.** `fx_rates_daily`, `fct_inventory_daily` and `rpt_stockout_risk` read the current day from a `today()` macro wrapping `dbt.current_timestamp()`; unit tests override the macro.
+- **Alternatives.** `current_date` in each model; a `var`.
+- **Reason.** `current_date` cannot be overridden in a unit test, so the forward-filled spine would run to the real date and break the expected rows. The macro is referenced directly by each model, which is what dbt's override mechanism requires.
+
+## 2026-11-16: Daily inventory keeps natural ids; the report is keyed on current dimension rows
+
+- **Decision.** `fct_inventory_daily` carries `dealer_id` and `part_id`, not SCD2 keys. `rpt_stockout_risk` maps `fct_sales` keys back to ids through the dimensions and attaches current dealer and part attributes.
+- **Alternatives.** Resolve `dealer_key` and `part_key` per day.
+- **Reason.** The stage names the grain as dealer, part, day and tests uniqueness on those ids. A stock report wants today's region and part name, so a per-day as-of join would add cost and no answer.
+
+## 2026-11-16: `amount_jpy` is cast to `decimal(18, 2)` after dividing
+
+- **Decision.** `cast(quantity * unit_price / rate as decimal(18, 2))`.
+- **Alternatives.** Divide decimals without a cast.
+- **Reason.** DuckDB divides decimals in floating point. The cast returns an exact two-decimal amount on both DuckDB and Snowflake, at the cost of rounding each line to the second decimal before summing.
+
 ## Deferred
 
 - Compaction of small raw files. Every run writes at most one file per table; at a five-minute schedule that is about 288 files per table per day, and listing and reading them starts to cost noticeably around tens of thousands of files per table (roughly a few months). Compact per `extract_date` partition then.
