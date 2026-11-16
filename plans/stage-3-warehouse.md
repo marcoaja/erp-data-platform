@@ -24,7 +24,7 @@ The layers, model list, grains, SCD2 rules, and test strategy are specified unde
   Done when: both tests pass, and each fails when you temporarily break the join condition.
 - [x] **Document every model** in YAML: a description stating the grain, and a description for each column a reader could misread.
   Done when: no mart model lacks a grain statement.
-- [ ] **Write `erp transform` and `erp run`.** `erp transform` runs `dbt build` as a subprocess for `DBT_TARGET` and fails when dbt fails. `erp run` executes extract then transform and stops at the first failure.
+- [x] **Write `erp transform` and `erp run`.** `erp transform` runs `dbt build` as a subprocess for `DBT_TARGET` and fails when dbt fails. `erp run` executes extract then transform and stops at the first failure.
   Done when: `erp run` twice in a row leaves identical row counts in every mart.
 - [ ] **Add SQL linting.** `sqlfluff` with the dbt templater and the DuckDB dialect, configured for lowercase keywords.
   Done when: `uv run sqlfluff lint transform/models` passes.

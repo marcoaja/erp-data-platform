@@ -30,6 +30,7 @@ jobs:
       ERP_READER_USER: erp_reader
       ERP_READER_PASSWORD: erp_reader_local_password
       RAW_URI: data/raw
+      WAREHOUSE_PATH: data/warehouse.duckdb
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6

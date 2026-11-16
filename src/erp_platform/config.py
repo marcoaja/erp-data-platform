@@ -14,6 +14,8 @@ class Settings:
     erp_reader_password: str
     raw_uri: str
     extract_lookback_seconds: int
+    warehouse_path: str
+    dbt_target: str
     s3_endpoint_url: str | None
     s3_access_key_id: str | None
     s3_secret_access_key: str | None
@@ -40,6 +42,8 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         erp_reader_password=require("ERP_READER_PASSWORD"),
         raw_uri=require("RAW_URI"),
         extract_lookback_seconds=int(env.get("EXTRACT_LOOKBACK_SECONDS") or 300),
+        warehouse_path=require("WAREHOUSE_PATH"),
+        dbt_target=env.get("DBT_TARGET") or "local",
         s3_endpoint_url=env.get("S3_ENDPOINT_URL") or None,
         s3_access_key_id=env.get("S3_ACCESS_KEY_ID") or None,
         s3_secret_access_key=env.get("S3_SECRET_ACCESS_KEY") or None,
