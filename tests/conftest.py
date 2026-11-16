@@ -79,11 +79,19 @@ def fx_server() -> Iterator[FakeFrankfurter]:
 
 
 @pytest.fixture
-def pipeline_settings(seeded_db: Settings, tmp_path: Path, fx_server: FakeFrankfurter) -> Settings:
-    """Seeded ERP copy with a private raw layer and warehouse file."""
-    return dataclasses.replace(
+def source(seeded_db: Settings, tmp_path: Path) -> Settings:
+    """Seeded ERP copy with a private raw layer and warehouse file, so no test can reach the
+    developer's WAREHOUSE_PATH."""
+    settings = dataclasses.replace(
         seeded_db,
         raw_uri=str(tmp_path / "raw"),
         warehouse_path=str(tmp_path / "warehouse.duckdb"),
-        fx_api_url=fx_server.url,
     )
+    assert Path(settings.warehouse_path).is_relative_to(tmp_path)
+    return settings
+
+
+@pytest.fixture
+def pipeline_settings(source: Settings, fx_server: FakeFrankfurter) -> Settings:
+    """The isolated source plus the local exchange-rate server."""
+    return dataclasses.replace(source, fx_api_url=fx_server.url)

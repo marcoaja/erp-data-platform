@@ -57,11 +57,6 @@ def test_old_and_new_raw_files_read_together_after_a_column_is_added(
     ) == [("phone",)]
 
 
-@pytest.fixture
-def source(seeded_db: Settings, tmp_path: Path) -> Settings:
-    return dataclasses.replace(seeded_db, raw_uri=str(tmp_path / "raw"))
-
-
 def raw_listing(settings: Settings) -> list[str]:
     return open_storage(settings).list_files()
 

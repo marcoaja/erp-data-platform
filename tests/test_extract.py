@@ -1,8 +1,6 @@
-import dataclasses
 import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
-from pathlib import Path
 
 import pyarrow as pa
 import pytest
@@ -12,12 +10,6 @@ from erp_platform.config import Settings
 from erp_platform.db import connect
 from erp_platform.ingestion.extract import TABLES, WATERMARKS, extract
 from erp_platform.storage import Storage, open_storage
-
-
-@pytest.fixture
-def source(seeded_db: Settings, tmp_path: Path) -> Settings:
-    """Seeded ERP copy with a private, empty raw layer."""
-    return dataclasses.replace(seeded_db, raw_uri=str(tmp_path / "raw"))
 
 
 def raw_files(storage: Storage, table: str) -> list[str]:
