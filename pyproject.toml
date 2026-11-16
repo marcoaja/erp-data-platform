@@ -27,6 +27,9 @@ line-length = 100
 select = ["E", "F", "I", "B", "UP", "SIM"]
 
 [dependency-groups]
+dashboard = [
+    "streamlit>=1.67.0",
+]
 dev = [
     "pytest>=9.2.0",
     "ruff>=0.17.5",
@@ -37,3 +40,7 @@ dev = [
 [tool.pytest.ini_options]
 # The system temp directory is not writable on every development machine.
 addopts = "--basetemp=.pytest_tmp"
+
+[tool.uv]
+# The dashboard tests need streamlit, so a plain `uv sync` installs both groups.
+default-groups = ["dev", "dashboard"]

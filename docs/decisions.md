@@ -223,6 +223,28 @@ Entry format: date, decision, alternatives considered, reason.
 - **Decision.** A failed reconciliation or schema check exits non-zero through the existing CLI handler. Sending the alert is stage 6's `alerting.py`.
 - **Reason.** The stage file names no alerting task, and `ALERT_WEBHOOK_URL` and `alerting.py` do not exist yet.
 
+## 2026-11-16: Publish whole marts and keep the dashboard's joins in the dashboard
+
+- **Decision.** `erp publish` exports `rpt_stockout_risk`, `fct_orders`, `dim_dealer`, `fct_sales`, `dim_part`, and `reconciliation_runs` unchanged. The dashboard runs the stage 4 analysis queries over them with in-memory DuckDB.
+- **Alternatives.** Publish pre-joined report tables (one per question), which needs three new dbt models and tests.
+- **Reason.** The published files stay the tested star schema and the dashboard SQL stays the analyses already verified in stage 4. The cost is a 700 KB `fct_sales` read per page load, which is small at this scale.
+
+## 2026-11-16: The last successful run is a marker file written last by publish
+
+- **Decision.** `erp publish` writes `last_success.json` (`finished_at`, UTC) after every Parquet file. `erp run` ends with publish, so the marker means "a whole run succeeded". Running `erp publish` alone also refreshes it.
+- **Alternatives.** The files' modification times; a table in the warehouse; a row in Postgres.
+- **Reason.** Modification times say when each file was written, not whether the run finished, and mix with partial publishes. A warehouse table would need the dashboard to open the warehouse (the lock this design avoids) and Postgres would make the dashboard depend on the ERP. The marker lives next to the data it describes and is replaced atomically like the data.
+
+## 2026-11-16: Publish retries the rename on Windows
+
+- **Decision.** The rename into place retries on `PermissionError` for up to five seconds.
+- **Reason.** Windows refuses to replace a file a reader has open; POSIX does not. The dashboard's reads are short. The deployment host is Linux, so this only matters on the development machine, and a hard failure after five seconds still propagates.
+
+## 2026-11-16: `SCHEDULE_INTERVAL_MINUTES` is a setting, not a constant
+
+- **Decision.** The dashboard reads the schedule interval (default 30) from the environment through `load_dashboard_settings`, which needs no Postgres or warehouse variable.
+- **Reason.** The staleness threshold must follow the cron entry, and the dashboard has to start without the variables `load_settings` requires.
+
 ## Deferred
 
 - Compaction of small raw files. Every run writes at most one file per table; at a five-minute schedule that is about 288 files per table per day, and listing and reading them starts to cost noticeably around tens of thousands of files per table (roughly a few months). Compact per `extract_date` partition then.

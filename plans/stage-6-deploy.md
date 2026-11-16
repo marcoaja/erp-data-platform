@@ -19,13 +19,15 @@ Serving and failure handling are specified under "Serving" and "Orchestration an
 
 ## Tasks
 
+> Status: `erp publish` and the dashboard are done locally. Every other task is pending human prerequisites (VPS access, hostname, R2 bucket and token, Discord webhook) and is not started.
+
 - [ ] **Point the raw layer at R2.** Add target `r2` to `profiles.yml` with the storage secret from the `S3_*` variables. Run the stage 2 storage tests against the bucket under a throwaway prefix.
   Done when: `erp run` with `RAW_URI=s3://<bucket>/raw` and `DBT_TARGET=r2` passes end to end from the development machine.
-- [ ] **Write `erp publish`.** Export the marts the dashboard reads to `SERVING_DIR`, each written to a temporary name and renamed. Append it as the last step of `erp run`.
+- [x] **Write `erp publish`.** Export the marts the dashboard reads to `SERVING_DIR`, each written to a temporary name and renamed. Append it as the last step of `erp run`.
   Done when: a pytest reads a published file while a publish is in progress and never sees a partial file.
 - [ ] **Write `alerting.py`.** One function that posts a message to `ALERT_WEBHOOK_URL` and does nothing when it is unset. `erp run` sends one alert per failed run naming the step, the error, and the `run_id`, and one warning for a soft failure.
   Done when: a pytest against a stub server sees exactly one request for a failed run and none for a clean run.
-- [ ] **Write the dashboard.** `dashboard/app.py`, one page, reading only `SERVING_DIR`: the three business questions as one chart or table each, the reconciliation history, and the time of the last successful run with a warning when it is older than twice the schedule interval. Add `streamlit` in a `dashboard` dependency group.
+- [x] **Write the dashboard.** `dashboard/app.py`, one page, reading only `SERVING_DIR`: the three business questions as one chart or table each, the reconciliation history, and the time of the last successful run with a warning when it is older than twice the schedule interval. Add `streamlit` in a `dashboard` dependency group.
   Done when: the page renders locally from published files with Postgres and the warehouse file both absent.
 - [ ] **Write the `Dockerfile`.** One image for every service, built with uv from the lockfile, running as a non-root user.
   Done when: `docker build .` succeeds and `docker run <image> erp --help` prints the subcommands.
