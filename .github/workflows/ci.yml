@@ -78,3 +78,5 @@ jobs:
       - run: uv run erp run
       - run: uv run erp simulate --ticks 5
       - run: uv run erp run
+      - run: uv run erp simulate --ticks 20 --seed 7 --with-deletes
+      - run: uv run erp run

@@ -60,7 +60,7 @@ plans/
 | `erp db ping` | Connects and prints the Postgres version | 0 |
 | `erp db migrate` | Applies pending SQL migrations in order | 1 |
 | `erp seed [--seed N]` | Loads initial master data and 90 days of order history; each seeding step is a no-op when its table already has rows | 1 |
-| `erp simulate --ticks N` / `--interval S` | Runs N business ticks and exits, or loops forever with S seconds between ticks | 1 |
+| `erp simulate --ticks N` / `--interval S` | Runs N business ticks and exits, or loops forever with S seconds between ticks; `--with-deletes` adds hard deletes (stage 5) | 1 |
 | `erp extract` | Writes changed rows to the raw layer and advances the watermark | 2 |
 | `erp transform` | Runs `dbt build` for the configured target | 3 |
 | `erp run` | Runs the pipeline steps in order (extract, fx, transform); exits non-zero on the first hard failure; an `erp fx` failure only logs a warning | 3 |
@@ -103,7 +103,7 @@ Postgres schema `erp`. Conventions for every table:
 | `dealers` | `dealer_code` unique, `name`, `country_code` (JP, ID, TH), `region`, `currency_code` (JPY, IDR, THB) |
 | `customers` | `dealer_id` fk, `name`, `email`, `phone`, `city` |
 | `parts` | `part_number` unique, `name`, `machine_model`, `category`, `list_price_jpy numeric(12,2)`, `is_active` |
-| `sales_orders` | `order_number` unique, `dealer_id` fk, `customer_id` fk, `status` (placed, confirmed, shipped, delivered, cancelled), `currency_code`, `ordered_at`, `shipped_at`, `delivered_at` |
+| `sales_orders` | `order_number` unique, `dealer_id` fk, `customer_id` fk, `status` (placed, confirmed, shipped, delivered, cancelled), `currency_code`, `ordered_at`, `shipped_at`, `delivered_at`, `sales_channel` (stage 5, nullable: dealer_portal, phone, email) |
 | `order_lines` | `order_id` fk, `line_number`, `part_id` fk, `quantity` > 0, `unit_price numeric(14,2)` in the order's currency; unique (`order_id`, `line_number`) |
 | `inventory` (stage 4) | `dealer_id` fk, `part_id` fk, `quantity_on_hand` ≥ 0, `reorder_point`; unique (`dealer_id`, `part_id`) |
 
@@ -122,7 +122,7 @@ One tick, driven by a seeded random generator:
 - changes `list_price_jpy` for a few parts
 - occasionally moves a dealer to another region
 - from stage 4: decrements inventory on shipment and replenishes low stock
-- from stage 5: hard-deletes a few lines from open orders
+- from stage 5: fills `sales_channel` on new orders; with `--with-deletes`, hard-deletes the last line of a few open orders that keep at least one other line
 
 ## Raw layer
 
@@ -131,11 +131,13 @@ Append-only Parquet, written by `erp extract`.
 ```
 <RAW_URI>/<table>/extract_date=YYYY-MM-DD/<run_id>.parquet   changed rows, all source columns
 <RAW_URI>/fx_rates/extract_date=YYYY-MM-DD/<run_id>.parquet   daily JPY-based rates (stage 4): date, base, quote, rate, _run_id, _extracted_at
-<RAW_URI>/_keys/<table>/latest.parquet                       every live id (stage 5), overwritten per run
-<RAW_URI>/control_totals/extract_date=YYYY-MM-DD/<run_id>.parquet   (stage 5)
+<RAW_URI>/_keys/<table>/latest.parquet                       every live id, column `id` (stage 5), overwritten per run
+<RAW_URI>/control_totals/extract_date=YYYY-MM-DD/<run_id>.parquet   run_id, table_name, metric, value decimal(38,2) (stage 5)
 <RAW_URI>/_state/watermarks.json                             {"<table>": "<cutoff ISO timestamp>"}
-<RAW_URI>/_state/schemas.json                                {"<table>": {"<column>": "<type>"}} (stage 5)
+<RAW_URI>/_state/schemas.json                                {"<table>": {"<column>": "<Arrow type>"}} (stage 5)
 ```
+
+Metrics in `control_totals`: `row_count` for every table, `sum_quantity` and `sum_amount_local` (`sum(quantity * unit_price)`) for `order_lines`, `sum_quantity_on_hand` for `inventory`.
 
 `run_id` is the run's cutoff in UTC, formatted `YYYYMMDDTHHMMSSZ`. A run that would reuse the previous committed run's id waits for the next second first, so a committed file is never overwritten. Every row carries `_run_id` and `_extracted_at`.
 
@@ -143,9 +145,10 @@ Append-only Parquet, written by `erp extract`.
 
 1. Open one `repeatable read, read only` transaction as the reader role. Every table is read from the same snapshot.
 2. `cutoff` is that transaction's `now()`.
-3. For each table, select `*` where `updated_at > watermark - lookback`. A table with no watermark is read in full. `select *` is deliberate: new source columns flow into raw without a code change.
-4. Build the Arrow schema from the cursor's column metadata, so every file of a table has identical types regardless of the values in it.
-5. Write the Parquet files, then write `watermarks.json` last. The state file is the commit point.
+3. Compare each table's live column names and Arrow types with `_state/schemas.json`. A removed or retyped column raises `SourceSchemaChanged` before anything is written; an added column is logged and the table is read in full on this run, so that a file carrying the column exists. A table with no stored schema is accepted as is.
+4. For each table, select `*` where `updated_at > watermark - lookback`. A table with no watermark is read in full. `select *` is deliberate: new source columns flow into raw without a code change.
+5. Build the Arrow schema from the cursor's column metadata, so every file of a table has identical types regardless of the values in it.
+6. Write the Parquet files, then the live keys of every table and the control totals (both from the same snapshot), then `schemas.json`, and `watermarks.json` last. The watermark file is the commit point.
 
 Guarantees and their reasons:
 
@@ -166,7 +169,7 @@ One model per source table, named `stg_erp__<table>`, at **version grain**: one 
 - renames and casts columns
 - removes duplicate versions from overlapping extracts
 - flags `is_current` on the newest version of each `id`
-- from stage 5: flags `is_deleted` when the `id` is missing from the latest keys file
+- from stage 5: flags `is_deleted` on every version of an `id` that is missing from the latest keys file. Facts, `dim_customer`, `fct_inventory_daily`, and the reconciliation warehouse side read `is_current and not is_deleted`
 
 ### Marts
 
@@ -181,17 +184,19 @@ One model per source table, named `stg_erp__<table>`, at **version grain**: one 
 | `fx_rates_daily` | one row per currency per day | `date_day`, `currency_code`, `rate` (units per JPY), `source_date`; from the first published rate to today, missing days filled forward, plus a JPY row with rate 1 | 4 |
 | `fct_inventory_daily` | one row per dealer, part, day | `dealer_id`, `part_id`, `date_key`, `quantity_on_hand`, `reorder_point`; last known stock per day from the stock row's creation to today; natural ids, not SCD2 keys | 4 |
 | `rpt_stockout_risk` | one row per dealer and part | days of cover from trailing 28-day sales, cancelled orders excluded; at risk below 7; null cover (no sales) is not at risk | 4 |
-| `reconciliation_runs` | one row per run and table | source control totals against warehouse totals, `is_match` | 5 |
+| `reconciliation_runs` | one row per run, table, and metric | `run_id`, `table_name`, `metric`, `source_value`, `warehouse_value`, `difference`, `is_match`; the only incremental model (keyed on run, table, metric, `full_refresh = false`), so earlier runs stay as history; a rebuilt warehouse starts with one run | 5 |
+
+The SCD2 dimensions close the last interval of a deleted row at the `_extracted_at` of its last version and set `is_current` to false.
 
 SCD2 dimensions are derived from the version history in staging with window functions: `valid_from` is the version's `updated_at`, `valid_to` is the next version's `updated_at`. The first known version of a row is valid from its `created_at`. Surrogate keys hash (`id`, `valid_from`). The current version has `valid_to is null`; an as-of join tests `valid_from <= t and (valid_to is null or t < valid_to)`.
 
-Models that need the current day call the `today()` macro (the UTC calendar day), which unit tests override to pin the date. Staging and marts are materialized as tables and rebuilt in full on every run, in schemas `staging` and `marts` (a `generate_schema_name` override stops dbt prefixing them with the target schema). The DuckDB session runs in UTC so that casting a timestamp to a date is machine-independent; the Snowflake profile must do the same.
+Models that need the current day call the `today()` macro (the UTC calendar day), which unit tests override to pin the date. Staging and marts are materialized as tables and rebuilt in full on every run (`reconciliation_runs` excepted), in schemas `staging` and `marts` (a `generate_schema_name` override stops dbt prefixing them with the target schema). The DuckDB session runs in UTC so that casting a timestamp to a date is machine-independent; the Snowflake profile must do the same.
 
 ### Tests
 
 - generic tests on every model: `unique` and `not_null` on keys, `relationships` from facts to dimensions, `accepted_values` on status and currency
 - unit tests for the SCD2 window logic and the as-of join in `fct_sales`
-- one singular test per invariant that spans models, for example SCD2 intervals of one `id` never overlap
+- one singular test per invariant that spans models, for example SCD2 intervals of one `id` never overlap, and `reconciliation_matches_source`: the latest run's totals all match. A failed `erp transform` prints the mismatching table and metric
 
 ## Serving
 

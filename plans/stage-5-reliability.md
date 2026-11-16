@@ -45,7 +45,7 @@ Raw-layer paths are specified under "Raw layer" in [ARCHITECTURE.md](ARCHITECTUR
 
 ## Part D: Rebuild from raw
 
-- [ ] **Prove the warehouse is disposable.** Delete the DuckDB file and run `erp transform`.
+- [x] **Prove the warehouse is disposable.** Delete the DuckDB file and run `erp transform`.
   Done when: a pytest shows every mart has the same row count and the same key totals before and after, except `reconciliation_runs`, whose history restarts; record that exception in `docs/decisions.md`.
 
 ## Acceptance

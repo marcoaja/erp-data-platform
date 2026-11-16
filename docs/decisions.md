@@ -176,6 +176,56 @@ Entry format: date, decision, alternatives considered, reason.
 - **Alternatives.** Divide decimals without a cast.
 - **Reason.** DuckDB divides decimals in floating point. The cast returns an exact two-decimal amount on both DuckDB and Snowflake, at the cost of rounding each line to the second decimal before summing.
 
+## 2026-11-16: `reconciliation_runs` is the one incremental model, and a rebuild restarts its history
+
+- **Decision.** `reconciliation_runs` is incremental with `unique_key = [run_id, table_name, metric]`, `delete+insert`, and `full_refresh = false`; every other model stays a full-refresh table. Deleting the DuckDB file and running `erp transform` rebuilds every mart to the same row counts and checksums (`tests/test_rebuild.py`), except `reconciliation_runs`, which restarts with one run.
+- **Alternatives.** Rebuild it as a table from every `control_totals` file, which keeps history across rebuilds but compares old totals against the current warehouse and so reports old runs as mismatches whenever data has changed since; or keep history outside the warehouse.
+- **Reason.** A run's result is a fact about the warehouse at that moment, so it cannot be recomputed later. `full_refresh = false` stops `dbt build --full-refresh` from wiping the history by accident. `delete+insert` makes a repeated `erp transform` of the same extract replace its own rows. The cost is that the history is only as durable as the warehouse file, which the architecture already treats as disposable.
+
+## 2026-11-16: Control totals are `decimal(38,2)` and compared for exact equality
+
+- **Decision.** The extract writes `row_count` for every table, `sum_quantity` and `sum_amount_local` (`sum(quantity * unit_price)`) for `order_lines`, and `sum_quantity_on_hand` for `inventory`, all as `decimal(38,2)`. The warehouse side recomputes the same expressions over staging rows that are current and not deleted, and a metric matches only when the values are equal.
+- **Alternatives.** Separate integer and decimal columns; a tolerance.
+- **Reason.** One value type keeps the file and the model simple. Both sides are exact decimals, so any difference is a real difference. The expressions exist twice (in `extract.py` and in the model); the model's comment points at the constant.
+
+## 2026-11-16: A failed `dbt build` prints the mismatching rows, then re-raises
+
+- **Decision.** `transform()` catches the failed build only to run `dbt show --select reconciliation_matches_source`, which prints the table and metric, and then re-raises.
+- **Alternatives.** Read the warehouse with DuckDB in Python after a failure; `store_failures`.
+- **Reason.** dbt names a failing test and its row count but not its rows. `dbt show` goes through the adapter, so the same code works on Snowflake, where a direct DuckDB read would not.
+
+## 2026-11-16: Deletes are found by a full key snapshot, and deleted rows are hidden, not removed
+
+- **Decision.** Every run overwrites `_keys/<table>/latest.parquet` with all live ids from the extract snapshot. Staging sets `is_deleted` on every version of an id that is missing from it; facts, `dim_customer`, `fct_inventory_daily`, and the reconciliation warehouse side exclude deleted rows. The SCD2 dimensions keep the history and close the last interval at the `_extracted_at` of the last version, with `is_current` false.
+- **Alternatives.** Soft deletes in the source; log-based CDC; closing the interval at the time the key file was written (it moves on every run, so `valid_to` would never be stable).
+- **Reason.** See `docs/incidents/hard-deletes.md`. The last extraction time of the last version is the latest moment the row is known to have existed, and it does not change once the row leaves the lookback window. The keys file is written before the watermark commit; a crash in between leaves keys that are ahead of the data, which only flags rows that really are gone.
+
+## 2026-11-16: Deletes in the simulator are opt-in and never empty an order
+
+- **Decision.** `--with-deletes` deletes the last line (line number above 1) of up to three open (`placed`, `confirmed`) orders per tick. Without the flag, behaviour is unchanged.
+- **Alternatives.** Always delete, as `ARCHITECTURE.md` first described; delete any line.
+- **Reason.** The stage asks for a flag, and the earlier stages' tests and seeds should not change. Keeping at least one line means a deleted line never leaves an order with no lines, which no real ERP allows.
+
+## 2026-11-16: `sales_channel` is drawn from the same random generator
+
+- **Decision.** The simulator picks each new order's channel with the tick's `random.Random`.
+- **Alternatives.** A separate generator seeded from the order number.
+- **Reason.** One generator keeps a seed reproducible with the least code. It changes the random sequence for a given seed compared with stage 4; no test depended on a particular sequence.
+
+## 2026-11-16: Schema check compares Arrow types, and an added column forces one full re-read
+
+- **Decision.** `_state/schemas.json` stores `{table: {column: arrow type}}`. A removed or retyped column raises `SourceSchemaChanged` before any file is written; an added column is logged and the table is read in full on that run. The file is written after the data files and before the watermarks. Accepting a breaking change means deleting the table's entry from `schemas.json`.
+- **Alternatives.** Postgres type names; no re-read, relying on a later change to a row to carry the column into raw; a `erp accept-schema` command.
+- **Reason.** Arrow types are what the raw files carry, so they are what a reader of the files would notice. Without the re-read, a migration on a quiet table would leave raw with no file holding the new column and fail the first `dbt build` that selects it by name. Deleting an entry needs no new command; a command is deferred until accepting changes becomes routine.
+
+## 2026-11-16: Alerting is not part of this stage
+
+- **Decision.** A failed reconciliation or schema check exits non-zero through the existing CLI handler. Sending the alert is stage 6's `alerting.py`.
+- **Reason.** The stage file names no alerting task, and `ALERT_WEBHOOK_URL` and `alerting.py` do not exist yet.
+
 ## Deferred
 
 - Compaction of small raw files. Every run writes at most one file per table; at a five-minute schedule that is about 288 files per table per day, and listing and reading them starts to cost noticeably around tens of thousands of files per table (roughly a few months). Compact per `extract_date` partition then.
+- Log-based change data capture (for example Debezium on the Postgres write-ahead log). It would capture deletes without a key read, and the intermediate versions that two extracts collapse into one. It needs logical replication on the ERP and a connector to operate, which is more than this scale and the 4 GB VPS justify. Revisit when the full key read per run or the lost intermediate versions become the problem.
+- Duplicate-customer matching. The ERP can hold the same customer twice under different ids; resolving that needs fuzzy matching and a survivorship rule, which does not serve any of the three business questions. Revisit when a question counts customers.
+- An `erp accept-schema` command that edits `_state/schemas.json`. Revisit when accepting a schema change stops being rare.
