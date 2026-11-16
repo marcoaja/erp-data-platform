@@ -12,3 +12,11 @@ sources:
       - name: parts
       - name: sales_orders
       - name: order_lines
+      - name: inventory
+
+  - name: fx
+    description: Daily exchange rates written by `erp fx`; the same date can appear in several files when the API revised it.
+    meta:
+      external_location: "read_parquet('{{ env_var('RAW_URI', 'data/raw') }}/{name}/*/*.parquet', union_by_name = true)"
+    tables:
+      - name: fx_rates

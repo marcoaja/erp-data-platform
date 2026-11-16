@@ -91,3 +91,48 @@ models:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns: [order_line_id, updated_at]
+  - name: stg_erp__inventory
+    description: >
+      Inventory versions. Grain: one row per inventory id and updated_at, deduplicated across
+      overlapping extracts.
+    columns:
+      - name: inventory_id
+        description: Primary key of the source row; repeats across versions.
+        data_tests: [not_null]
+      - name: updated_at
+        description: When the ERP wrote this version. With the id it identifies a version.
+        data_tests: [not_null]
+      - name: is_current
+        description: True on the newest extracted version of each id.
+        data_tests: [not_null]
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [inventory_id, updated_at]
+  - name: stg_fx__rates
+    description: >
+      Exchange rates published by the API. Grain: one row per rate_date and currency_code, the
+      most recently fetched value.
+    columns:
+      - name: rate_date
+        description: The day the rate was published for.
+        data_tests: [not_null]
+      - name: base_currency
+        description: Currency the rate is relative to; always JPY.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [JPY]
+      - name: currency_code
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [IDR, THB]
+      - name: rate
+        description: Units of currency_code per one JPY.
+        data_tests: [not_null]
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [rate_date, currency_code]
