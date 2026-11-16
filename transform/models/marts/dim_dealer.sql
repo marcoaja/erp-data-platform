@@ -13,7 +13,12 @@ intervals as (
             when row_number() over (partition by dealer_id order by updated_at) = 1 then created_at
             else updated_at
         end as valid_from,
-        lead(updated_at) over (partition by dealer_id order by updated_at) as valid_to
+        -- A deleted row's last interval ends when its last version was last extracted, the
+        -- latest moment the row is known to have been alive.
+        coalesce(
+            lead(updated_at) over (partition by dealer_id order by updated_at),
+            case when is_deleted then _extracted_at end
+        ) as valid_to
     from versions
 
 )
@@ -28,5 +33,5 @@ select
     currency_code,
     valid_from,
     valid_to,
-    is_current
+    is_current and not is_deleted as is_current
 from intervals

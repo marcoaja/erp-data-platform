@@ -255,3 +255,21 @@ def test_control_totals_match_the_same_queries_run_in_one_transaction(source: Se
     assert written == by_hand
     assert {r["run_id"] for r in storage.read_parquet(file).to_pylist()} == {result.run_id}
     assert written[("order_lines", "sum_amount_local")] > 0
+
+
+def test_keys_file_lists_every_live_id_and_follows_deletes(source: Settings) -> None:
+    extract(source)
+    storage = open_storage(source)
+    with connect(source) as conn:
+        live = [r[0] for r in conn.execute("select id from erp.order_lines order by id")]
+    assert storage.read_parquet("_keys/order_lines/latest.parquet")["id"].to_pylist() == live
+
+    with connect(source) as conn:
+        conn.execute("delete from erp.order_lines where id = any(%s)", (live[-2:],))
+    extract(source)
+    keys = storage.read_parquet("_keys/order_lines/latest.parquet")["id"].to_pylist()
+    assert keys == live[:-2]
+    for table in TABLES:
+        assert storage.read_parquet(f"_keys/{table}/latest.parquet").num_rows == source_count(
+            source, table
+        )

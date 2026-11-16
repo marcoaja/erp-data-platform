@@ -16,6 +16,18 @@ sources:
       # One row per extract with the source's own totals; compared by reconciliation_runs.
       - name: control_totals
 
+  - name: erp_keys
+    description: Every live id of each source table at the latest extract, overwritten on every run.
+    meta:
+      external_location: "read_parquet('{{ env_var('RAW_URI', 'data/raw') }}/_keys/{name}/*.parquet')"
+    tables:
+      - name: dealers
+      - name: customers
+      - name: parts
+      - name: sales_orders
+      - name: order_lines
+      - name: inventory
+
   - name: fx
     description: Daily exchange rates written by `erp fx`; the same date can appear in several files when the API revised it.
     meta:

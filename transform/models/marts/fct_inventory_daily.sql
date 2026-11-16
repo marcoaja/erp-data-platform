@@ -1,6 +1,7 @@
 with versions as (
 
     select * from {{ ref('stg_erp__inventory') }}
+    where not is_deleted
 
 ),
 

@@ -15,6 +15,9 @@ models:
       - name: is_current
         description: True on the newest extracted version of each id.
         data_tests: [not_null]
+      - name: is_deleted
+        description: True when the id is missing from the latest keys snapshot, so the row was hard-deleted in the ERP. Set on every version of the id.
+        data_tests: [not_null]
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -32,6 +35,9 @@ models:
         data_tests: [not_null]
       - name: is_current
         description: True on the newest extracted version of each id.
+        data_tests: [not_null]
+      - name: is_deleted
+        description: True when the id is missing from the latest keys snapshot, so the row was hard-deleted in the ERP. Set on every version of the id.
         data_tests: [not_null]
     data_tests:
       - dbt_utils.unique_combination_of_columns:
@@ -51,6 +57,9 @@ models:
       - name: is_current
         description: True on the newest extracted version of each id.
         data_tests: [not_null]
+      - name: is_deleted
+        description: True when the id is missing from the latest keys snapshot, so the row was hard-deleted in the ERP. Set on every version of the id.
+        data_tests: [not_null]
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -68,6 +77,9 @@ models:
         data_tests: [not_null]
       - name: is_current
         description: True on the newest extracted version of each id.
+        data_tests: [not_null]
+      - name: is_deleted
+        description: True when the id is missing from the latest keys snapshot, so the row was hard-deleted in the ERP. Set on every version of the id.
         data_tests: [not_null]
     data_tests:
       - dbt_utils.unique_combination_of_columns:
@@ -87,6 +99,9 @@ models:
       - name: is_current
         description: True on the newest extracted version of each id.
         data_tests: [not_null]
+      - name: is_deleted
+        description: True when the id is missing from the latest keys snapshot, so the row was hard-deleted in the ERP. Set on every version of the id.
+        data_tests: [not_null]
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -104,6 +119,9 @@ models:
         data_tests: [not_null]
       - name: is_current
         description: True on the newest extracted version of each id.
+        data_tests: [not_null]
+      - name: is_deleted
+        description: True when the id is missing from the latest keys snapshot, so the row was hard-deleted in the ERP. Set on every version of the id.
         data_tests: [not_null]
     data_tests:
       - dbt_utils.unique_combination_of_columns:

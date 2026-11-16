@@ -9,7 +9,7 @@ with orders as (
         cast({{ dbt.datediff('ordered_at', 'delivered_at', 'second') }} / 3600.0 as decimal(12, 2))
             as hours_to_deliver
     from {{ ref('stg_erp__sales_orders') }}
-    where is_current
+    where is_current and not is_deleted
     -- noqa: enable=LT05
 
 ),

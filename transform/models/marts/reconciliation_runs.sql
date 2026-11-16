@@ -42,7 +42,7 @@ warehouse_side as (
         'row_count' as metric,
         cast(count(*) as decimal(38, 2)) as warehouse_value
     from {{ ref('stg_erp__' ~ table) }}
-    where is_current
+    where is_current and not is_deleted
     union all
     {% endfor %}
     -- noqa: enable=LT02
@@ -51,21 +51,21 @@ warehouse_side as (
         'sum_quantity' as metric,
         cast(coalesce(sum(quantity), 0) as decimal(38, 2)) as warehouse_value
     from {{ ref('stg_erp__order_lines') }}
-    where is_current
+    where is_current and not is_deleted
     union all
     select
         'order_lines' as table_name,
         'sum_amount_local' as metric,
         cast(coalesce(sum(quantity * unit_price), 0) as decimal(38, 2)) as warehouse_value
     from {{ ref('stg_erp__order_lines') }}
-    where is_current
+    where is_current and not is_deleted
     union all
     select
         'inventory' as table_name,
         'sum_quantity_on_hand' as metric,
         cast(coalesce(sum(quantity_on_hand), 0) as decimal(38, 2)) as warehouse_value
     from {{ ref('stg_erp__inventory') }}
-    where is_current
+    where is_current and not is_deleted
 
 )
 

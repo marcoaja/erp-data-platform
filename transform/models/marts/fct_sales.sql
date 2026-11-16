@@ -1,14 +1,14 @@
 with lines as (
 
     select * from {{ ref('stg_erp__order_lines') }}
-    where is_current
+    where is_current and not is_deleted
 
 ),
 
 orders as (
 
     select * from {{ ref('stg_erp__sales_orders') }}
-    where is_current
+    where is_current and not is_deleted
 
 ),
 

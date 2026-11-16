@@ -25,7 +25,7 @@ Raw-layer paths are specified under "Raw layer" in [ARCHITECTURE.md](ARCHITECTUR
   Done when: the reconciliation test fails for `order_lines`, and you have saved the failing rows as evidence.
 - [x] **Write `docs/incidents/hard-deletes.md`, first half.** What happened, why a watermark cannot see a deleted row, the evidence.
   Done when: the document shows the actual mismatch figures.
-- [ ] **Fix with key snapshots.** In the extract snapshot, write every live `id` of each table to `_keys/<table>/latest.parquet`. Staging flags `is_deleted` for an `id` absent from that file. Facts, current-state dimensions, and the warehouse side of `reconciliation_runs` exclude deleted rows; SCD2 dimensions close the deleted row's last interval.
+- [x] **Fix with key snapshots.** In the extract snapshot, write every live `id` of each table to `_keys/<table>/latest.parquet`. Staging flags `is_deleted` for an `id` absent from that file. Facts, current-state dimensions, and the warehouse side of `reconciliation_runs` exclude deleted rows; SCD2 dimensions close the deleted row's last interval.
   Done when: the reconciliation test passes with `--with-deletes` running, and a dbt unit test covers a deleted line.
 - [ ] **Finish the incident document.** The fix, its cost (a full key read per table per run), and the alternatives: soft deletes in the source, and log-based CDC.
   Done when: the document ends with the passing reconciliation output.

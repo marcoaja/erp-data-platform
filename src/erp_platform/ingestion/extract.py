@@ -88,6 +88,8 @@ def extract(settings: Settings) -> Extraction:
             watermark = stored.get(table)
             since = datetime.fromisoformat(watermark) - lookback if watermark else None
             rows[table] = _extract_table(conn, storage, table, since, cutoff, run_id, extracted_at)
+        for table in TABLES:
+            _write_keys(conn, storage, table)
         totals = _control_totals(conn, run_id)
         storage.write_parquet(
             f"control_totals/extract_date={cutoff:%Y-%m-%d}/{run_id}.parquet", totals
@@ -162,3 +164,14 @@ def _control_totals(conn: psycopg.Connection, run_id: str) -> pa.Table:
             "value": pa.array([r[2] for r in records], type=CONTROL_TOTALS_TYPE),
         }
     )
+
+
+def _write_keys(conn: psycopg.Connection, storage: Storage, table: str) -> None:
+    """Overwrite the table's live ids: the only way to see a hard delete, which leaves no row."""
+    ids = [
+        r[0] for r in conn.execute(sql.SQL("select id from erp.{}").format(sql.Identifier(table)))
+    ]
+    storage.write_parquet(
+        f"_keys/{table}/latest.parquet", pa.table({"id": pa.array(ids, pa.int64())})
+    )
+    log.info("extract table=%s live_keys=%d", table, len(ids))

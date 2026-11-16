@@ -6,10 +6,10 @@ unit_tests:
     given:
       - input: ref('stg_erp__parts')
         rows:
-          - {part_id: 1, created_at: "2026-01-01 00:00:00+00", updated_at: "2026-01-05 00:00:00+00", list_price_jpy: 100, is_current: false}
-          - {part_id: 1, created_at: "2026-01-01 00:00:00+00", updated_at: "2026-02-01 00:00:00+00", list_price_jpy: 110, is_current: false}
-          - {part_id: 1, created_at: "2026-01-01 00:00:00+00", updated_at: "2026-03-01 00:00:00+00", list_price_jpy: 120, is_current: true}
-          - {part_id: 2, created_at: "2026-01-02 00:00:00+00", updated_at: "2026-01-02 00:00:00+00", list_price_jpy: 50, is_current: true}
+          - {part_id: 1, created_at: "2026-01-01 00:00:00+00", updated_at: "2026-01-05 00:00:00+00", list_price_jpy: 100, is_current: false, is_deleted: false}
+          - {part_id: 1, created_at: "2026-01-01 00:00:00+00", updated_at: "2026-02-01 00:00:00+00", list_price_jpy: 110, is_current: false, is_deleted: false}
+          - {part_id: 1, created_at: "2026-01-01 00:00:00+00", updated_at: "2026-03-01 00:00:00+00", list_price_jpy: 120, is_current: true, is_deleted: false}
+          - {part_id: 2, created_at: "2026-01-02 00:00:00+00", updated_at: "2026-01-02 00:00:00+00", list_price_jpy: 50, is_current: true, is_deleted: false}
     expect:
       rows:
         - {part_id: 1, list_price_jpy: 100, valid_from: "2026-01-01 00:00:00+00", valid_to: "2026-02-01 00:00:00+00", is_current: false}
@@ -22,10 +22,10 @@ unit_tests:
     given:
       - input: ref('stg_erp__order_lines')
         rows:
-          - {order_line_id: 1, order_id: 10, line_number: 1, part_id: 1, quantity: 3, unit_price: 100.00, is_current: true}
+          - {order_line_id: 1, order_id: 10, line_number: 1, part_id: 1, quantity: 3, unit_price: 100.00, is_current: true, is_deleted: false}
       - input: ref('stg_erp__sales_orders')
         rows:
-          - {order_id: 10, order_number: SO-0000010, dealer_id: 5, customer_id: 7, status: placed, currency_code: JPY, ordered_at: "2026-02-15 12:00:00+00", is_current: true}
+          - {order_id: 10, order_number: SO-0000010, dealer_id: 5, customer_id: 7, status: placed, currency_code: JPY, ordered_at: "2026-02-15 12:00:00+00", is_current: true, is_deleted: false}
       - input: ref('dim_dealer')
         rows:
           - {dealer_key: d1, dealer_id: 5, valid_from: "2026-01-01 00:00:00+00", valid_to: null}
@@ -48,10 +48,10 @@ unit_tests:
     given:
       - input: ref('stg_erp__order_lines')
         rows:
-          - {order_line_id: 1, order_id: 10, line_number: 1, part_id: 1, quantity: 1, unit_price: 120.00, is_current: true}
+          - {order_line_id: 1, order_id: 10, line_number: 1, part_id: 1, quantity: 1, unit_price: 120.00, is_current: true, is_deleted: false}
       - input: ref('stg_erp__sales_orders')
         rows:
-          - {order_id: 10, order_number: SO-0000010, dealer_id: 5, customer_id: 7, status: placed, currency_code: JPY, ordered_at: "2026-03-01 00:00:00+00", is_current: true}
+          - {order_id: 10, order_number: SO-0000010, dealer_id: 5, customer_id: 7, status: placed, currency_code: JPY, ordered_at: "2026-03-01 00:00:00+00", is_current: true, is_deleted: false}
       - input: ref('dim_dealer')
         rows:
           - {dealer_key: d1, dealer_id: 5, valid_from: "2026-01-01 00:00:00+00", valid_to: null}
@@ -74,12 +74,12 @@ unit_tests:
     given:
       - input: ref('stg_erp__order_lines')
         rows:
-          - {order_line_id: 1, order_id: 10, line_number: 1, part_id: 1, quantity: 2, unit_price: 1050.00, is_current: true}
-          - {order_line_id: 2, order_id: 11, line_number: 1, part_id: 1, quantity: 3, unit_price: 100.00, is_current: true}
+          - {order_line_id: 1, order_id: 10, line_number: 1, part_id: 1, quantity: 2, unit_price: 1050.00, is_current: true, is_deleted: false}
+          - {order_line_id: 2, order_id: 11, line_number: 1, part_id: 1, quantity: 3, unit_price: 100.00, is_current: true, is_deleted: false}
       - input: ref('stg_erp__sales_orders')
         rows:
-          - {order_id: 10, order_number: SO-0000010, dealer_id: 5, customer_id: 7, status: placed, currency_code: IDR, ordered_at: "2026-03-02 12:00:00+00", is_current: true}
-          - {order_id: 11, order_number: SO-0000011, dealer_id: 5, customer_id: 7, status: placed, currency_code: JPY, ordered_at: "2026-03-02 13:00:00+00", is_current: true}
+          - {order_id: 10, order_number: SO-0000010, dealer_id: 5, customer_id: 7, status: placed, currency_code: IDR, ordered_at: "2026-03-02 12:00:00+00", is_current: true, is_deleted: false}
+          - {order_id: 11, order_number: SO-0000011, dealer_id: 5, customer_id: 7, status: placed, currency_code: JPY, ordered_at: "2026-03-02 13:00:00+00", is_current: true, is_deleted: false}
       - input: ref('dim_dealer')
         rows:
           - {dealer_key: d1, dealer_id: 5, valid_from: "2026-01-01 00:00:00+00", valid_to: null}
@@ -136,9 +136,9 @@ unit_tests:
     given:
       - input: ref('stg_erp__inventory')
         rows:
-          - {inventory_id: 1, dealer_id: 5, part_id: 9, quantity_on_hand: 50, reorder_point: 10, created_at: "2026-03-01 08:00:00+00", updated_at: "2026-03-01 10:00:00+00"}
-          - {inventory_id: 1, dealer_id: 5, part_id: 9, quantity_on_hand: 40, reorder_point: 10, created_at: "2026-03-01 08:00:00+00", updated_at: "2026-03-03 09:00:00+00"}
-          - {inventory_id: 1, dealer_id: 5, part_id: 9, quantity_on_hand: 35, reorder_point: 10, created_at: "2026-03-01 08:00:00+00", updated_at: "2026-03-03 15:00:00+00"}
+          - {inventory_id: 1, dealer_id: 5, part_id: 9, quantity_on_hand: 50, reorder_point: 10, created_at: "2026-03-01 08:00:00+00", updated_at: "2026-03-01 10:00:00+00", is_deleted: false}
+          - {inventory_id: 1, dealer_id: 5, part_id: 9, quantity_on_hand: 40, reorder_point: 10, created_at: "2026-03-01 08:00:00+00", updated_at: "2026-03-03 09:00:00+00", is_deleted: false}
+          - {inventory_id: 1, dealer_id: 5, part_id: 9, quantity_on_hand: 35, reorder_point: 10, created_at: "2026-03-01 08:00:00+00", updated_at: "2026-03-03 15:00:00+00", is_deleted: false}
       - input: ref('dim_date')
         rows:
           - {date_day: "2026-02-28"}
@@ -187,3 +187,42 @@ unit_tests:
         - {dealer_id: 1, part_id: 1, units_sold_28d: 28, days_of_cover: 5.00, is_at_risk: true}
         - {dealer_id: 1, part_id: 2, units_sold_28d: 14, days_of_cover: 200.00, is_at_risk: false}
         - {dealer_id: 1, part_id: 3, units_sold_28d: 0, days_of_cover: null, is_at_risk: false}
+
+  - name: fct_sales_leaves_out_a_deleted_line
+    model: fct_sales
+    given:
+      - input: ref('stg_erp__order_lines')
+        rows:
+          - {order_line_id: 1, order_id: 10, line_number: 1, part_id: 1, quantity: 3, unit_price: 100.00, is_current: true, is_deleted: false}
+          - {order_line_id: 2, order_id: 10, line_number: 2, part_id: 1, quantity: 7, unit_price: 100.00, is_current: false, is_deleted: true}
+          - {order_line_id: 2, order_id: 10, line_number: 2, part_id: 1, quantity: 9, unit_price: 100.00, is_current: true, is_deleted: true}
+      - input: ref('stg_erp__sales_orders')
+        rows:
+          - {order_id: 10, order_number: SO-0000010, dealer_id: 5, customer_id: 7, status: placed, currency_code: JPY, ordered_at: "2026-02-15 12:00:00+00", is_current: true, is_deleted: false}
+      - input: ref('dim_dealer')
+        rows:
+          - {dealer_key: d1, dealer_id: 5, valid_from: "2026-01-01 00:00:00+00", valid_to: null}
+      - input: ref('dim_part')
+        rows:
+          - {part_key: p1, part_id: 1, list_price_jpy: 100, valid_from: "2026-01-01 00:00:00+00", valid_to: null}
+      - input: ref('dim_customer')
+        rows:
+          - {customer_key: c1, customer_id: 7}
+      - input: ref('fx_rates_daily')
+        rows:
+          - {date_day: "2026-02-15", currency_code: JPY, rate: 1}
+    expect:
+      rows:
+        - {order_line_id: 1, quantity: 3, amount_local: 300.00}
+
+  - name: dim_part_closes_the_last_interval_of_a_deleted_part
+    model: dim_part
+    given:
+      - input: ref('stg_erp__parts')
+        rows:
+          - {part_id: 1, created_at: "2026-01-01 00:00:00+00", updated_at: "2026-01-05 00:00:00+00", _extracted_at: "2026-01-05 00:05:00+00", list_price_jpy: 100, is_current: false, is_deleted: true}
+          - {part_id: 1, created_at: "2026-01-01 00:00:00+00", updated_at: "2026-02-01 00:00:00+00", _extracted_at: "2026-04-01 00:05:00+00", list_price_jpy: 110, is_current: true, is_deleted: true}
+    expect:
+      rows:
+        - {part_id: 1, list_price_jpy: 100, valid_from: "2026-01-01 00:00:00+00", valid_to: "2026-02-01 00:00:00+00", is_current: false}
+        - {part_id: 1, list_price_jpy: 110, valid_from: "2026-02-01 00:00:00+00", valid_to: "2026-04-01 00:05:00+00", is_current: false}

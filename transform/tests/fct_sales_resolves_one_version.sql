@@ -2,7 +2,7 @@
 -- on that row were in force when the order was placed. Returns offending order lines.
 with expected as (
 
-    select order_line_id from {{ ref('stg_erp__order_lines') }} where is_current
+    select order_line_id from {{ ref('stg_erp__order_lines') }} where is_current and not is_deleted
 
 ),
 

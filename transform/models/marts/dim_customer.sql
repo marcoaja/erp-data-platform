@@ -1,7 +1,7 @@
 with customers as (
 
     select * from {{ ref('stg_erp__customers') }}
-    where is_current
+    where is_current and not is_deleted
 
 )
 

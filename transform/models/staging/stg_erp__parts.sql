@@ -4,6 +4,13 @@ with source as (
 
 ),
 
+live_keys as (
+
+    -- Every id present in the ERP at the latest extract; a hard delete leaves no other trace.
+    select id from {{ source('erp_keys', 'parts') }}
+
+),
+
 renamed as (
 
     select
@@ -31,6 +38,10 @@ deduplicated as (
 )
 
 select
-    *,
-    row_number() over (partition by part_id order by updated_at desc) = 1 as is_current
+    deduplicated.*,
+    row_number() over (
+        partition by deduplicated.part_id order by deduplicated.updated_at desc
+    ) = 1 as is_current,
+    live_keys.id is null as is_deleted
 from deduplicated
+left join live_keys on deduplicated.part_id = live_keys.id

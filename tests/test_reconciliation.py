@@ -4,6 +4,7 @@ import pytest
 from helpers import query
 
 from erp_platform.config import Settings
+from erp_platform.db import connect
 from erp_platform.pipeline import run
 from erp_platform.storage import open_storage
 
@@ -46,3 +47,31 @@ def test_an_edited_raw_value_fails_the_run_and_names_the_table_and_metric(
     output = capfd.readouterr().out
     assert "order_lines" in output.split("reconciliation_matches_source")[-1]
     assert "sum_quantity" in output
+
+
+def test_hard_deleted_lines_leave_the_facts_and_the_totals_still_match(
+    pipeline_settings: Settings,
+) -> None:
+    run(pipeline_settings)
+    with connect(pipeline_settings) as conn:
+        deleted = [
+            r[0]
+            for r in conn.execute(
+                "delete from erp.order_lines where id in (select id from erp.order_lines"
+                " order by id desc limit 3) returning id"
+            )
+        ]
+    run(pipeline_settings)
+
+    ids = ", ".join(str(i) for i in deleted)
+    assert query(
+        pipeline_settings,
+        f"select count(*) from staging.stg_erp__order_lines where is_deleted and is_current"
+        f" and order_line_id in ({ids})",
+    ) == [(3,)]
+    assert query(
+        pipeline_settings, f"select count(*) from marts.fct_sales where order_line_id in ({ids})"
+    ) == [(0,)]
+    assert query(
+        pipeline_settings, "select count(*) from marts.reconciliation_runs where not is_match"
+    ) == [(0,)]
