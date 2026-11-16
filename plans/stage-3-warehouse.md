@@ -16,13 +16,13 @@ The layers, model list, grains, SCD2 rules, and test strategy are specified unde
   Done when: `select count(*) from {{ source('erp', 'parts') }}` compiles and runs.
 - [x] **Write the five staging models** at version grain, as specified. Use `qualify` for the duplicate removal and the `is_current` flag; both DuckDB and Snowflake support it.
   Done when: each model has `unique` on the combination (`id`, `updated_at`) and `not_null` on its key columns, and the tests pass.
-- [ ] **Write `dim_date`, `dim_customer`, `dim_dealer`, `dim_part`.** The two SCD2 dimensions follow the rules in the architecture.
+- [x] **Write `dim_date`, `dim_customer`, `dim_dealer`, `dim_part`.** The two SCD2 dimensions follow the rules in the architecture.
   Done when: a dbt unit test feeds three versions of one part and expects three rows with contiguous, non-overlapping intervals and one `is_current`.
-- [ ] **Write `fct_sales` and `fct_orders`.** `fct_sales` resolves `dealer_key` and `part_key` as of `ordered_at` and carries the list price in force at that time.
+- [x] **Write `fct_sales` and `fct_orders`.** `fct_sales` resolves `dealer_key` and `part_key` as of `ordered_at` and carries the list price in force at that time.
   Done when: a dbt unit test places an order between two price versions and expects the earlier version's key and price; `relationships` tests from both facts to every dimension pass.
-- [ ] **Add the cross-model invariants** as singular tests: SCD2 intervals of one `id` never overlap, and every `fct_sales` row resolves exactly one dealer version and one part version.
+- [x] **Add the cross-model invariants** as singular tests: SCD2 intervals of one `id` never overlap, and every `fct_sales` row resolves exactly one dealer version and one part version.
   Done when: both tests pass, and each fails when you temporarily break the join condition.
-- [ ] **Document every model** in YAML: a description stating the grain, and a description for each column a reader could misread.
+- [x] **Document every model** in YAML: a description stating the grain, and a description for each column a reader could misread.
   Done when: no mart model lacks a grain statement.
 - [ ] **Write `erp transform` and `erp run`.** `erp transform` runs `dbt build` as a subprocess for `DBT_TARGET` and fails when dbt fails. `erp run` executes extract then transform and stops at the first failure.
   Done when: `erp run` twice in a row leaves identical row counts in every mart.
