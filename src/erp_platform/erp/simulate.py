@@ -2,6 +2,7 @@ import logging
 import random
 import signal
 import threading
+from dataclasses import dataclass, field
 from decimal import Decimal
 
 import psycopg
@@ -11,7 +12,7 @@ from erp_platform.db import connect
 
 log = logging.getLogger(__name__)
 
-# Units of each currency per one JPY. Fixed so order prices stay reproducible; stage 4 fetches
+# Units of each currency per one JPY. Fixed so order prices stay reproducible; `erp fx` fetches
 # real rates for reporting, and these constants only generate the source data.
 FX_PER_JPY = {"JPY": Decimal("1"), "IDR": Decimal("105"), "THB": Decimal("0.23")}
 MAX_DISCOUNT = 0.15
@@ -28,7 +29,19 @@ NEXT_STATUS = {"placed": "confirmed", "confirmed": "shipped", "shipped": "delive
 CANCEL_PROBABILITY = 0.05
 MOVE_DEALER_PROBABILITY = 0.15
 
+# A part below its reorder point arrives again after this many ticks.
+REPLENISH_DELAY_TICKS = (3, 6)
+REPLENISH_TARGET_MULTIPLE = (3, 6)
+
 CENT = Decimal("0.01")
+
+
+@dataclass
+class SimulationState:
+    """Replenishment orders in flight. Derived from stock levels, so a restart loses nothing."""
+
+    tick_number: int = 0
+    due_tick: dict[int, int] = field(default_factory=dict)
 
 
 def unit_price(rng: random.Random, list_price_jpy: Decimal, currency: str) -> Decimal:
@@ -114,8 +127,48 @@ def advance_orders(conn: psycopg.Connection, rng: random.Random) -> int:
                 " where id = any(%s::bigint[])",
                 (target, ids),
             )
+            if target == "shipped":
+                ship_stock(conn, ids)
             advanced += len(ids)
     return advanced
+
+
+def ship_stock(conn: psycopg.Connection, order_ids: list[int]) -> None:
+    """Take shipped quantities out of the dealer's stock, never below zero."""
+    conn.execute(
+        "update erp.inventory i set quantity_on_hand = greatest(0, i.quantity_on_hand - s.qty)"
+        " from (select o.dealer_id, l.part_id, sum(l.quantity) as qty"
+        "       from erp.order_lines l join erp.sales_orders o on o.id = l.order_id"
+        "       where o.id = any(%s::bigint[]) group by 1, 2) s"
+        " where i.dealer_id = s.dealer_id and i.part_id = s.part_id",
+        (order_ids,),
+    )
+
+
+def replenish_stock(conn: psycopg.Connection, rng: random.Random, state: SimulationState) -> int:
+    """Restock rows below their reorder point once their delivery delay has passed."""
+    with conn.transaction():
+        low = [
+            r[0]
+            for r in conn.execute(
+                "select id from erp.inventory where quantity_on_hand < reorder_point order by id"
+            )
+        ]
+        # Forget deliveries for rows that are no longer low, then schedule the newly low ones.
+        still_low = set(low)
+        state.due_tick = {i: t for i, t in state.due_tick.items() if i in still_low}
+        for inventory_id in low:
+            state.due_tick.setdefault(
+                inventory_id, state.tick_number + rng.randint(*REPLENISH_DELAY_TICKS)
+            )
+        arrived = [i for i, t in state.due_tick.items() if t <= state.tick_number]
+        for inventory_id in arrived:
+            conn.execute(
+                "update erp.inventory set quantity_on_hand = reorder_point * %s where id = %s",
+                (rng.randint(*REPLENISH_TARGET_MULTIPLE), inventory_id),
+            )
+            del state.due_tick[inventory_id]
+    return len(arrived)
 
 
 def correct_line_quantities(conn: psycopg.Connection, rng: random.Random) -> int:
@@ -165,17 +218,19 @@ def move_dealer(conn: psycopg.Connection, rng: random.Random) -> int:
     return 1
 
 
-def tick(conn: psycopg.Connection, rng: random.Random) -> None:
+def tick(conn: psycopg.Connection, rng: random.Random, state: SimulationState) -> None:
     """One business tick; every behaviour commits in its own transaction."""
+    state.tick_number += 1
     log.info(
         "tick new_orders=%d cancelled=%d advanced=%d corrected_lines=%d price_changes=%d"
-        " dealer_moves=%d",
+        " dealer_moves=%d replenished=%d",
         create_orders(conn, rng),
         cancel_placed_orders(conn, rng),
         advance_orders(conn, rng),
         correct_line_quantities(conn, rng),
         change_part_prices(conn, rng),
         move_dealer(conn, rng),
+        replenish_stock(conn, rng, state),
     )
 
 
@@ -190,6 +245,7 @@ def simulate(
     if (ticks is None) == (interval is None):
         raise ValueError("pass exactly one of ticks and interval")
     rng = random.Random(seed)
+    state = SimulationState()
     stop = threading.Event()
     signals = (signal.SIGINT, signal.SIGTERM)
     previous = {sig: signal.signal(sig, lambda *_: stop.set()) for sig in signals}
@@ -197,7 +253,7 @@ def simulate(
     try:
         with connect(settings, autocommit=True) as conn:
             while not stop.is_set() and (ticks is None or done < ticks):
-                tick(conn, rng)
+                tick(conn, rng, state)
                 done += 1
                 if interval is not None:
                     stop.wait(interval)

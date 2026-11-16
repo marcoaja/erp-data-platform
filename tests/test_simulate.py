@@ -1,3 +1,4 @@
+import random
 import signal
 import threading
 from decimal import Decimal
@@ -7,7 +8,15 @@ import pytest
 from erp_platform.cli import main
 from erp_platform.config import Settings
 from erp_platform.db import connect
-from erp_platform.erp.simulate import FX_PER_JPY, MAX_DISCOUNT, REGIONS, simulate
+from erp_platform.erp.simulate import (
+    FX_PER_JPY,
+    MAX_DISCOUNT,
+    REGIONS,
+    SimulationState,
+    advance_orders,
+    simulate,
+    tick,
+)
 
 
 def test_twenty_ticks_change_the_erp(seeded_db: Settings) -> None:
@@ -89,3 +98,56 @@ def test_simulate_requires_ticks_or_interval(capsys: pytest.CaptureFixture[str])
     with pytest.raises(SystemExit) as exc:
         main(["simulate"])
     assert exc.value.code == 2
+
+
+def stock(settings: Settings) -> dict[int, int]:
+    with connect(settings) as conn:
+        return dict(conn.execute("select id, quantity_on_hand from erp.inventory").fetchall())
+
+
+def test_fifty_ticks_deplete_and_replenish_stock(seeded_db: Settings) -> None:
+    rng = random.Random(7)
+    state = SimulationState()
+    decreases = increases = 0
+    previous = stock(seeded_db)
+    with connect(seeded_db, autocommit=True) as conn:
+        for _ in range(50):
+            tick(conn, rng, state)
+            current = stock(seeded_db)
+            assert min(current.values()) >= 0
+            decreases += sum(current[i] < q for i, q in previous.items())
+            increases += sum(current[i] > q for i, q in previous.items())
+            previous = current
+    assert decreases > 0
+    assert increases > 0
+
+
+class AlwaysAdvance(random.Random):
+    def random(self) -> float:
+        return 0.0
+
+
+def test_shipping_an_order_takes_its_quantities_out_of_stock(seeded_db: Settings) -> None:
+    with connect(seeded_db, autocommit=True) as conn:
+        order_id, dealer_id = conn.execute(
+            "select o.id, o.dealer_id from erp.sales_orders o"
+            " where o.status = 'confirmed' and exists ("
+            "  select 1 from erp.order_lines l join erp.inventory i"
+            "   on i.part_id = l.part_id and i.dealer_id = o.dealer_id where l.order_id = o.id)"
+            " order by o.id limit 1"
+        ).fetchone()
+        lines = conn.execute(
+            "select l.part_id, l.quantity, i.quantity_on_hand from erp.order_lines l"
+            " join erp.inventory i on i.part_id = l.part_id and i.dealer_id = %s"
+            " where l.order_id = %s",
+            (dealer_id, order_id),
+        ).fetchall()
+        # Confirmed orders ship; every other open order moves one step too, which is harmless.
+        advance_orders(conn, AlwaysAdvance())
+        for part_id, quantity, before in lines:
+            (after,) = conn.execute(
+                "select quantity_on_hand from erp.inventory where dealer_id = %s and part_id = %s",
+                (dealer_id, part_id),
+            ).fetchone()
+            # Other orders of the same dealer may ship in the same call, so stock can fall more.
+            assert after <= max(0, before - quantity)

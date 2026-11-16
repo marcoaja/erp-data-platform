@@ -18,6 +18,7 @@ PART_COUNT = 500
 CUSTOMER_COUNT = 2000
 ORDER_COUNT = 3000
 CANCELLED_SHARE = 0.05
+PARTS_STOCKED_PER_DEALER = 60
 
 COUNTRIES = {"JP": ("ja_JP", "JPY"), "ID": ("id_ID", "IDR"), "TH": ("th_TH", "THB")}
 
@@ -199,6 +200,31 @@ def seed_orders(conn: psycopg.Connection, seed: int, now: datetime) -> tuple[int
     return len(orders), len(line_rows)
 
 
+def seed_inventory(conn: psycopg.Connection, seed: int) -> int:
+    """Stock each dealer with parts it has ordered, so stock and sales describe the same parts."""
+    rng = random.Random(f"{seed}:inventory")
+    ordered: dict[int, list[int]] = {}
+    for dealer_id, part_id in conn.execute(
+        "select distinct o.dealer_id, l.part_id from erp.order_lines l"
+        " join erp.sales_orders o on o.id = l.order_id order by 1, 2"
+    ):
+        ordered.setdefault(dealer_id, []).append(part_id)
+    rows = []
+    for dealer_id, part_ids in ordered.items():
+        for part_id in rng.sample(part_ids, k=min(len(part_ids), PARTS_STOCKED_PER_DEALER)):
+            reorder_point = rng.randint(5, 20)
+            # Starting between 20% and 300% of the reorder point leaves some stock already low.
+            on_hand = int(reorder_point * rng.uniform(0.2, 3))
+            rows.append((dealer_id, part_id, on_hand, reorder_point))
+    with conn.cursor() as cur:
+        cur.executemany(
+            "insert into erp.inventory (dealer_id, part_id, quantity_on_hand, reorder_point)"
+            " values (%s, %s, %s, %s)",
+            rows,
+        )
+    return len(rows)
+
+
 def seed(settings: Settings, *, seed: int = 42) -> None:
     """Load master data and 90 days of orders; each step is skipped when its table has rows."""
     with connect(settings, autocommit=True) as conn:
@@ -209,6 +235,7 @@ def seed(settings: Settings, *, seed: int = 42) -> None:
             ("parts", lambda: seed_parts(conn, seed, start)),
             ("customers", lambda: seed_customers(conn, seed, start)),
             ("sales_orders", lambda: seed_orders(conn, seed, now)),
+            ("inventory", lambda: seed_inventory(conn, seed)),
         ]
         for table, step in steps:
             with conn.transaction():

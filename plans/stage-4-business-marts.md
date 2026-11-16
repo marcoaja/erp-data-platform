@@ -10,7 +10,7 @@ Model grains are specified under "Marts" in [ARCHITECTURE.md](ARCHITECTURE.md); 
 
 ## Tasks
 
-- [ ] **Add inventory to the ERP.** A new migration creates `erp.inventory` following the table conventions. `erp seed` gains a step that stocks every dealer with a subset of parts, safe to run on an already seeded database. The simulator decrements stock when an order ships and replenishes a part that falls below its reorder point after a delay of several ticks, so some parts do run low.
+- [x] **Add inventory to the ERP.** A new migration creates `erp.inventory` following the table conventions. `erp seed` gains a step that stocks every dealer with a subset of parts, safe to run on an already seeded database. The simulator decrements stock when an order ships and replenishes a part that falls below its reorder point after a delay of several ticks, so some parts do run low.
   Done when: a pytest runs 50 ticks and finds stock decreased for shipped parts, never negative, and at least one replenishment.
 - [ ] **Extract inventory.** Add the table to the extract list.
   Done when: the first extract after the migration loads the table in full, with no change to the other tables' watermarks.

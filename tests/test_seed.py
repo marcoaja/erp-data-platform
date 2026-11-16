@@ -7,7 +7,7 @@ from erp_platform.db import connect
 from erp_platform.erp.seed import seed
 from erp_platform.erp.simulate import FX_PER_JPY, MAX_DISCOUNT
 
-TABLES = ["dealers", "parts", "customers", "sales_orders", "order_lines"]
+TABLES = ["dealers", "parts", "customers", "sales_orders", "order_lines", "inventory"]
 
 
 def count_rows(settings: Settings) -> dict[str, int]:
@@ -31,6 +31,40 @@ def test_row_counts(seeded_template: Settings) -> None:
     assert counts["sales_orders"] > 0
     assert counts["order_lines"] >= counts["sales_orders"]
     assert statuses == {"placed", "confirmed", "shipped", "delivered", "cancelled"}
+
+
+def test_every_dealer_is_stocked_with_parts_it_sells(seeded_template: Settings) -> None:
+    with connect(seeded_template) as conn:
+        stocked = conn.execute(
+            "select count(distinct dealer_id), min(quantity_on_hand), max(quantity_on_hand) "
+            "from erp.inventory"
+        ).fetchone()
+        unsold = conn.execute(
+            "select count(*) from erp.inventory i where not exists ("
+            " select 1 from erp.order_lines l join erp.sales_orders o on o.id = l.order_id"
+            " where o.dealer_id = i.dealer_id and l.part_id = i.part_id)"
+        ).fetchone()
+        low = conn.execute(
+            "select count(*) from erp.inventory where quantity_on_hand < reorder_point"
+        ).fetchone()
+    assert stocked[0] == 30
+    assert stocked[1] >= 0
+    assert unsold == (0,)
+    assert low[0] > 0
+
+
+def test_seeding_inventory_on_a_database_that_has_none_keeps_other_tables(
+    seeded_db: Settings,
+) -> None:
+    with connect(seeded_db, autocommit=True) as conn:
+        conn.execute("delete from erp.inventory")
+    counts = count_rows(seeded_db)
+    seed(seeded_db, seed=42)
+    after = count_rows(seeded_db)
+    assert after["inventory"] > 0
+    assert {t: n for t, n in after.items() if t != "inventory"} == {
+        t: n for t, n in counts.items() if t != "inventory"
+    }
 
 
 def test_order_timestamps_are_consistent(seeded_template: Settings) -> None:
