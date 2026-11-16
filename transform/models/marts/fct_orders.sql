@@ -1,7 +1,16 @@
 with orders as (
 
-    select * from {{ ref('stg_erp__sales_orders') }}
+    -- noqa: disable=LT05
+    -- The adapter's datediff macro renders to a long line; that is not ours to wrap.
+    select
+        *,
+        cast({{ dbt.datediff('ordered_at', 'shipped_at', 'second') }} / 3600.0 as decimal(12, 2))
+            as hours_to_ship,
+        cast({{ dbt.datediff('ordered_at', 'delivered_at', 'second') }} / 3600.0 as decimal(12, 2))
+            as hours_to_deliver
+    from {{ ref('stg_erp__sales_orders') }}
     where is_current
+    -- noqa: enable=LT05
 
 ),
 
@@ -28,13 +37,12 @@ select
     orders.ordered_at,
     orders.shipped_at,
     orders.delivered_at,
-    cast({{ dbt.datediff('orders.ordered_at', 'orders.shipped_at', 'second') }} / 3600.0 as decimal(12, 2))
-        as hours_to_ship,
-    cast({{ dbt.datediff('orders.ordered_at', 'orders.delivered_at', 'second') }} / 3600.0 as decimal(12, 2))
-        as hours_to_deliver
+    orders.hours_to_ship,
+    orders.hours_to_deliver
 from orders
 left join dealers
-    on orders.dealer_id = dealers.dealer_id
-    and orders.ordered_at >= dealers.valid_from
-    and (dealers.valid_to is null or orders.ordered_at < dealers.valid_to)
+    on
+        orders.dealer_id = dealers.dealer_id
+        and orders.ordered_at >= dealers.valid_from
+        and (dealers.valid_to is null or orders.ordered_at < dealers.valid_to)
 left join customers on orders.customer_id = customers.customer_id

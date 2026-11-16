@@ -25,7 +25,8 @@ deduplicated as (
 
     -- Overlapping extracts write the same version more than once; keep the latest copy.
     select * from renamed
-    qualify row_number() over (partition by order_line_id, updated_at order by _extracted_at desc) = 1
+    qualify
+        row_number() over (partition by order_line_id, updated_at order by _extracted_at desc) = 1
 
 )
 

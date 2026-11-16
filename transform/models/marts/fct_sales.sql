@@ -48,11 +48,13 @@ select
 from lines
 inner join orders on lines.order_id = orders.order_id
 left join dealers
-    on orders.dealer_id = dealers.dealer_id
-    and orders.ordered_at >= dealers.valid_from
-    and (dealers.valid_to is null or orders.ordered_at < dealers.valid_to)
+    on
+        orders.dealer_id = dealers.dealer_id
+        and orders.ordered_at >= dealers.valid_from
+        and (dealers.valid_to is null or orders.ordered_at < dealers.valid_to)
 left join parts
-    on lines.part_id = parts.part_id
-    and orders.ordered_at >= parts.valid_from
-    and (parts.valid_to is null or orders.ordered_at < parts.valid_to)
+    on
+        lines.part_id = parts.part_id
+        and orders.ordered_at >= parts.valid_from
+        and (parts.valid_to is null or orders.ordered_at < parts.valid_to)
 left join customers on orders.customer_id = customers.customer_id

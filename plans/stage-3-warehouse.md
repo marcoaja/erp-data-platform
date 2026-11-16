@@ -26,9 +26,9 @@ The layers, model list, grains, SCD2 rules, and test strategy are specified unde
   Done when: no mart model lacks a grain statement.
 - [x] **Write `erp transform` and `erp run`.** `erp transform` runs `dbt build` as a subprocess for `DBT_TARGET` and fails when dbt fails. `erp run` executes extract then transform and stops at the first failure.
   Done when: `erp run` twice in a row leaves identical row counts in every mart.
-- [ ] **Add SQL linting.** `sqlfluff` with the dbt templater and the DuckDB dialect, configured for lowercase keywords.
+- [x] **Add SQL linting.** `sqlfluff` with the dbt templater and the DuckDB dialect, configured for lowercase keywords.
   Done when: `uv run sqlfluff lint transform/models` passes.
-- [ ] **Extend CI** with an end-to-end job: migrate, seed, simulate 20 ticks, `erp run`, simulate 5 ticks, `erp run`.
+- [x] **Extend CI** with an end-to-end job: migrate, seed, simulate 20 ticks, `erp run`, simulate 5 ticks, `erp run`.
   Done when: the job's commands pass locally from an empty database and an empty `data/` directory.
 
 ## Acceptance
