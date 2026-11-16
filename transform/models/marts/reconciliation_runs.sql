@@ -69,16 +69,20 @@ warehouse_side as (
 
 )
 
+-- Full outer join: a metric the warehouse computes but the newest extract did not report, or one
+-- the extract reports and the warehouse does not, is a mismatch, not a silent omission.
 select
-    source_side.run_id,
-    source_side.table_name,
-    source_side.metric,
+    coalesce(source_side.run_id, latest_run.run_id) as run_id,
+    coalesce(source_side.table_name, warehouse_side.table_name) as table_name,
+    coalesce(source_side.metric, warehouse_side.metric) as metric,
     source_side.source_value,
     warehouse_side.warehouse_value,
-    coalesce(warehouse_side.warehouse_value, 0) - source_side.source_value as difference,
+    coalesce(warehouse_side.warehouse_value, 0)
+    - coalesce(source_side.source_value, 0) as difference,
     coalesce(warehouse_side.warehouse_value = source_side.source_value, false) as is_match
 from source_side
-left join warehouse_side
+full outer join warehouse_side
     on
         source_side.table_name = warehouse_side.table_name
         and source_side.metric = warehouse_side.metric
+cross join latest_run

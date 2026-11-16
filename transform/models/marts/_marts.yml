@@ -288,7 +288,7 @@ models:
         description: row_count, sum_quantity, sum_amount_local or sum_quantity_on_hand.
         data_tests: [not_null]
       - name: source_value
-        description: The total computed in the extract snapshot of the ERP.
+        description: The total computed in the extract snapshot of the ERP; null when the extract did not report this metric.
       - name: warehouse_value
         description: The same total over the current staging rows; null when the warehouse has no such metric.
       - name: difference

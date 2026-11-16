@@ -1,12 +1,15 @@
 import subprocess
 
 import duckdb
+import pyarrow.compute as pc
 import pytest
 from helpers import query
 
 from erp_platform.config import Settings
 from erp_platform.db import connect
-from erp_platform.pipeline import run
+from erp_platform.ingestion.extract import extract
+from erp_platform.ingestion.fx import fx
+from erp_platform.pipeline import run, transform
 from erp_platform.storage import open_storage
 
 
@@ -104,3 +107,19 @@ def test_hard_deleted_lines_leave_the_facts_and_the_totals_still_match(
     assert query(
         pipeline_settings, "select count(*) from marts.reconciliation_runs where not is_match"
     ) == [(0,)]
+
+
+def test_a_newest_run_missing_expected_metrics_fails(pipeline_settings: Settings) -> None:
+    extract(pipeline_settings)
+    fx(pipeline_settings)
+    storage = open_storage(pipeline_settings)
+    (path,) = [f for f in storage.list_files("control_totals") if f.endswith(".parquet")]
+    totals = storage.read_parquet(path)
+    assert totals.num_rows == 9
+    # Keep six of the nine metrics, as a partial or older extract would.
+    kept = totals.filter(~pc.field("table_name").isin(["dealers", "customers", "parts"]))
+    assert kept.num_rows == 6
+    storage.write_parquet(path, kept)
+
+    with pytest.raises(subprocess.CalledProcessError):
+        transform(pipeline_settings)
