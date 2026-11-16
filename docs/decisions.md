@@ -229,11 +229,11 @@ Entry format: date, decision, alternatives considered, reason.
 - **Alternatives.** Publish pre-joined report tables (one per question), which needs three new dbt models and tests.
 - **Reason.** The published files stay the tested star schema and the dashboard SQL stays the analyses already verified in stage 4. The cost is a 700 KB `fct_sales` read per page load, which is small at this scale.
 
-## 2026-11-16: The last successful run is a marker file written last by publish
+## 2026-11-16: The last successful run is a marker file written by `erp run`
 
-- **Decision.** `erp publish` writes `last_success.json` (`finished_at`, UTC) after every Parquet file. `erp run` ends with publish, so the marker means "a whole run succeeded". Running `erp publish` alone also refreshes it.
-- **Alternatives.** The files' modification times; a table in the warehouse; a row in Postgres.
-- **Reason.** Modification times say when each file was written, not whether the run finished, and mix with partial publishes. A warehouse table would need the dashboard to open the warehouse (the lock this design avoids) and Postgres would make the dashboard depend on the ERP. The marker lives next to the data it describes and is replaced atomically like the data.
+- **Decision.** `erp run` writes `last_success.json` (`finished_at`, UTC) after `publish()` returns, which is after `dbt build` and its reconciliation test passed. `erp publish` alone exports the files and leaves the marker as it was.
+- **Alternatives.** Writing it inside `publish()` (the first version: a standalone `erp publish` after a failed reconciliation advanced the marker); the files' modification times; a table in the warehouse; a row in Postgres.
+- **Reason.** The marker must mean "a whole run, including reconciliation, succeeded"; only `run()` knows that. Modification times say when each file was written, not whether the run finished, and mix with partial publishes. A warehouse table would need the dashboard to open the warehouse (the lock this design avoids) and Postgres would make the dashboard depend on the ERP. The marker lives next to the data it describes and is replaced atomically like the data.
 
 ## 2026-11-16: Publish retries the rename on Windows
 

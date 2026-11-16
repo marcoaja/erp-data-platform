@@ -7,7 +7,7 @@ from pathlib import Path
 from erp_platform.config import Settings
 from erp_platform.ingestion.extract import extract
 from erp_platform.ingestion.fx import FxUnavailable, fx
-from erp_platform.publish import publish
+from erp_platform.publish import publish, write_last_success
 
 log = logging.getLogger(__name__)
 
@@ -63,3 +63,6 @@ def run(settings: Settings) -> None:
         log.warning("fx failed, continuing on the rates already stored: %s", exc)
     transform(settings)
     publish(settings)
+    # Only here: a standalone `erp publish` after a failed reconciliation must not look like a
+    # successful run to the dashboard.
+    write_last_success(settings)

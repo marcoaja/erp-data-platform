@@ -29,7 +29,7 @@ uv run --env-file .env erp simulate --ticks 10   # or --interval 5 to keep the E
 uv run --env-file .env erp extract         # writes changed rows to data/raw/ as Parquet
 uv run --env-file .env erp fx              # fetches daily JPY exchange rates (public API, no key)
 uv run --env-file .env erp run             # extract, fx, dbt build into data/warehouse.duckdb, then publish to data/serving/
-uv run --env-file .env erp publish         # re-export only (erp run already does this)
+uv run --env-file .env erp publish         # re-export only (erp run already does this); does not refresh the last-success time
 uv run --env-file .env streamlit run dashboard/app.py   # dashboard; needs only data/serving/
 ```
 

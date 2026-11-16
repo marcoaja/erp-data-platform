@@ -65,7 +65,7 @@ plans/
 | `erp transform` | Runs `dbt build` for the configured target | 3 |
 | `erp run` | Runs the pipeline steps in order (extract, fx, transform); exits non-zero on the first hard failure; an `erp fx` failure only logs a warning | 3 |
 | `erp fx` | Fetches daily exchange rates into the raw layer | 4 |
-| `erp publish` | Exports the dashboard's marts to serving Parquet and records the finish time | 6 |
+| `erp publish` | Exports the dashboard's marts to serving Parquet; does not touch the last-success marker | 6 |
 | `erp snowflake-load` | Copies raw Parquet from the bucket into Snowflake `RAW` tables | 7 |
 
 Local development runs natively with `uv run --env-file .env erp <command>` against Postgres in Docker.
@@ -201,7 +201,7 @@ Models that need the current day call the `today()` macro (the UTC calendar day)
 
 ## Serving
 
-DuckDB allows one writing process per database file, so the dashboard never opens the warehouse file. `erp publish` exports the marts the dashboard needs to `<SERVING_DIR>/<model>.parquet`, writing to a temporary name and renaming, and the dashboard reads those files with an in-memory DuckDB connection. The published marts are `rpt_stockout_risk`, `fct_orders`, `dim_dealer`, `fct_sales`, `dim_part`, and `reconciliation_runs`. After the last file, publish writes `<SERVING_DIR>/last_success.json` (`{"finished_at": <UTC ISO>}`), the time the dashboard reports as the last successful run.
+DuckDB allows one writing process per database file, so the dashboard never opens the warehouse file. `erp publish` exports the marts the dashboard needs to `<SERVING_DIR>/<model>.parquet`, writing to a temporary name and renaming, and the dashboard reads those files with an in-memory DuckDB connection. The published marts are `rpt_stockout_risk`, `fct_orders`, `dim_dealer`, `fct_sales`, `dim_part`, and `reconciliation_runs`. `erp run` writes `<SERVING_DIR>/last_success.json` (`{"finished_at": <UTC ISO>}`) after publish returns, so a failed reconciliation never advances it; a standalone `erp publish` leaves it as it was. The dashboard reports it as the last successful run.
 
 ## Orchestration and failure handling
 

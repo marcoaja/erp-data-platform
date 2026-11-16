@@ -24,9 +24,10 @@ PUBLISHED_MARTS = [
     "reconciliation_runs",
 ]
 
-# Written last, so it exists only for a complete set of files. It is a file, not the files'
-# modification times, because the dashboard must know when the last run *succeeded*, and a
-# rename-based publish gives every file the time of its own write.
+# Written by `erp run` after publish and reconciliation have both succeeded, so it exists only for
+# a complete, verified set of files. It is a file, not the files' modification times, because the
+# dashboard must know when the last run *succeeded*, and a rename-based publish gives every file
+# the time of its own write.
 LAST_SUCCESS_FILE = "last_success.json"
 
 
@@ -64,8 +65,14 @@ def publish(settings: Settings) -> None:
     finally:
         conn.close()
 
+    log.info("publish finished dir=%s marts=%d", serving, len(PUBLISHED_MARTS))
+
+
+def write_last_success(settings: Settings) -> None:
+    """Record now as the last successful run, replacing the marker atomically."""
+    serving = Path(settings.serving_dir)
     marker = serving / LAST_SUCCESS_FILE
     marker_tmp = serving / f"{LAST_SUCCESS_FILE}.tmp"
     marker_tmp.write_text(json.dumps({"finished_at": datetime.now(UTC).isoformat()}))
     _replace(marker_tmp, marker)
-    log.info("publish finished dir=%s marts=%d", serving, len(PUBLISHED_MARTS))
+    log.info("last success recorded at %s", marker)

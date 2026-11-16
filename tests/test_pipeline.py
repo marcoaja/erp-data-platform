@@ -1,4 +1,5 @@
 import dataclasses
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -8,6 +9,8 @@ from erp_platform.config import Settings
 from erp_platform.db import connect
 from erp_platform.erp.simulate import simulate
 from erp_platform.pipeline import DBT_PROJECT, dbt, run
+from erp_platform.publish import LAST_SUCCESS_FILE, publish
+from erp_platform.storage import open_storage
 
 
 def test_running_twice_leaves_every_mart_unchanged(pipeline_settings: Settings) -> None:
@@ -104,3 +107,25 @@ def test_every_sale_converts_to_jpy_with_the_published_rate(pipeline_settings: S
         "and amount_jpy <> amount_local",
     )
     assert jpy_sales[0] == (0,)
+
+
+def test_a_failed_run_and_a_standalone_publish_leave_the_last_success_marker(
+    pipeline_settings: Settings,
+) -> None:
+    run(pipeline_settings)
+    marker = Path(pipeline_settings.serving_dir) / LAST_SUCCESS_FILE
+    before = marker.read_text()
+
+    storage = open_storage(pipeline_settings)
+    (path,) = [f for f in storage.list_files("order_lines") if f.endswith(".parquet")]
+    lines = storage.read_parquet(path)
+    quantities = lines["quantity"].to_pylist()
+    quantities[0] += 1  # the warehouse no longer matches the ERP
+    storage.write_parquet(
+        path, lines.set_column(lines.schema.get_field_index("quantity"), "quantity", [quantities])
+    )
+    with pytest.raises(subprocess.CalledProcessError):
+        run(pipeline_settings)
+    publish(pipeline_settings)
+
+    assert marker.read_text() == before
