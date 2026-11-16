@@ -10,11 +10,11 @@ The layers, model list, grains, SCD2 rules, and test strategy are specified unde
 
 ## Tasks
 
-- [ ] **Create the dbt project** in `transform/`. Add `dbt-core`, `dbt-duckdb`, and `duckdb` as dependencies, pinned to the dbt 1.x line. `profiles.yml` lives in `transform/`, reads everything from environment variables, and defines target `local` writing to `WAREHOUSE_PATH`. Install `dbt_utils` through `packages.yml`.
+- [x] **Create the dbt project** in `transform/`. Add `dbt-core`, `dbt-duckdb`, and `duckdb` as dependencies, pinned to the dbt 1.x line. `profiles.yml` lives in `transform/`, reads everything from environment variables, and defines target `local` writing to `WAREHOUSE_PATH`. Install `dbt_utils` through `packages.yml`.
   Done when: `uv run --env-file .env dbt debug --project-dir transform --profiles-dir transform` passes.
-- [ ] **Declare the sources.** One source `erp` whose tables read `<RAW_URI>/<table>/*/*.parquet` through `external_location` with `union_by_name = true`. The source carries no target-specific logic beyond that property, so it resolves to schema `RAW` on Snowflake later.
+- [x] **Declare the sources.** One source `erp` whose tables read `<RAW_URI>/<table>/*/*.parquet` through `external_location` with `union_by_name = true`. The source carries no target-specific logic beyond that property, so it resolves to schema `RAW` on Snowflake later.
   Done when: `select count(*) from {{ source('erp', 'parts') }}` compiles and runs.
-- [ ] **Write the five staging models** at version grain, as specified. Use `qualify` for the duplicate removal and the `is_current` flag; both DuckDB and Snowflake support it.
+- [x] **Write the five staging models** at version grain, as specified. Use `qualify` for the duplicate removal and the `is_current` flag; both DuckDB and Snowflake support it.
   Done when: each model has `unique` on the combination (`id`, `updated_at`) and `not_null` on its key columns, and the tests pass.
 - [ ] **Write `dim_date`, `dim_customer`, `dim_dealer`, `dim_part`.** The two SCD2 dimensions follow the rules in the architecture.
   Done when: a dbt unit test feeds three versions of one part and expects three rows with contiguous, non-overlapping intervals and one `is_current`.
