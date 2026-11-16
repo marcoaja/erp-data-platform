@@ -56,6 +56,30 @@ Entry format: date, decision, alternatives considered, reason.
 - **Alternatives.** Default system temp directory.
 - **Reason.** The system temp directory was not writable on the development machine, which broke `tmp_path`.
 
+## 2026-11-16: Run ids never repeat; a same-second run waits
+
+- **Decision.** If the new cutoff formats to the same `run_id` as the last committed run, extract rolls back, sleeps to the next second, and takes a fresh snapshot.
+- **Alternatives.** Microsecond run ids (changes the documented format); overwrite on collision.
+- **Reason.** A same-second run would overwrite the first run's files after the watermark committed them, losing rows. Tests and impatient operators hit this; production schedules do not.
+
+## 2026-11-16: Local writes go through a temporary name and a rename
+
+- **Decision.** `Storage` writes local Parquet and JSON to `<name>.tmp` and renames; S3 writes go straight to the final key.
+- **Alternatives.** Write in place everywhere.
+- **Reason.** A crash mid-write must not leave a truncated `watermarks.json` or Parquet file that downstream reads. Object stores only publish an object once the upload completes. Both write paths share the pattern at two occurrences, so no helper yet.
+
+## 2026-11-16: `RAW_URI` is required, other new settings are optional
+
+- **Decision.** `load_settings` fails when `RAW_URI` is missing; `EXTRACT_LOOKBACK_SECONDS` defaults to 300 and the `S3_*` variables default to unset (empty strings count as unset). CI sets `RAW_URI=data/raw`.
+- **Alternatives.** Default `RAW_URI` in code.
+- **Reason.** Every command loads the same settings, and a silent default would hide a mis-set environment on the VPS.
+
+## 2026-11-16: Whole table read into memory per extract
+
+- **Decision.** Each table's changed rows are fetched with `fetchall()` and written as one Parquet file.
+- **Alternatives.** Server-side cursor with batched row groups.
+- **Reason.** The first extract is 16,000 rows and takes 0.2 s. Batching is added when a single table passes about a million rows.
+
 ## Deferred
 
-- (none yet)
+- Compaction of small raw files. Every run writes at most one file per table; at a five-minute schedule that is about 288 files per table per day, and listing and reading them starts to cost noticeably around tens of thousands of files per table (roughly a few months). Compact per `extract_date` partition then.

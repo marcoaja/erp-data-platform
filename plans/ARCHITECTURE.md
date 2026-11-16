@@ -135,7 +135,7 @@ Append-only Parquet, written by `erp extract`.
 <RAW_URI>/_state/schemas.json                                {"<table>": {"<column>": "<type>"}} (stage 5)
 ```
 
-`run_id` is the run's cutoff in UTC, formatted `YYYYMMDDTHHMMSSZ`. Every row carries `_run_id` and `_extracted_at`.
+`run_id` is the run's cutoff in UTC, formatted `YYYYMMDDTHHMMSSZ`. A run that would reuse the previous committed run's id waits for the next second first, so a committed file is never overwritten. Every row carries `_run_id` and `_extracted_at`.
 
 ### Extract protocol
 

@@ -26,6 +26,7 @@ uv run --env-file .env erp db ping         # prints the Postgres version
 uv run --env-file .env erp db migrate      # creates the erp schema and the reader role
 uv run --env-file .env erp seed            # 30 dealers, 500 parts, 2,000 customers, 90 days of orders
 uv run --env-file .env erp simulate --ticks 10   # or --interval 5 to keep the ERP changing
+uv run --env-file .env erp extract         # writes changed rows to data/raw/ as Parquet
 ```
 
 Checks:

@@ -10,23 +10,23 @@ The file layout, the extract protocol, and its guarantees are specified under "R
 
 ## Tasks
 
-- [ ] **Write `storage.py`.** One function that turns `RAW_URI` and the `S3_*` settings into a `pyarrow.fs` filesystem and a root path, plus helpers to write a Parquet table, read and write a small JSON object, and list files. Add `pyarrow` as a dependency.
+- [x] **Write `storage.py`.** One function that turns `RAW_URI` and the `S3_*` settings into a `pyarrow.fs` filesystem and a root path, plus helpers to write a Parquet table, read and write a small JSON object, and list files. Add `pyarrow` as a dependency.
   Done when: a pytest round-trips Parquet and JSON through a temporary local directory.
-- [ ] **Map Postgres types to Arrow types** from the cursor's column metadata: integers, `numeric(p,s)` to `decimal128(p,s)`, `text`, `boolean`, `date`, `timestamptz` to `timestamp('us', tz='UTC')`. An unmapped type raises an error naming the column.
+- [x] **Map Postgres types to Arrow types** from the cursor's column metadata: integers, `numeric(p,s)` to `decimal128(p,s)`, `text`, `boolean`, `date`, `timestamptz` to `timestamp('us', tz='UTC')`. An unmapped type raises an error naming the column.
   Done when: a pytest extracts a table whose nullable column is entirely null and the written file still has that column's declared type.
-- [ ] **Write `erp extract`.** Follow the five protocol steps. Connect as the reader role. Tables are listed once, in a module constant. A table with no changed rows writes no file.
+- [x] **Write `erp extract`.** Follow the five protocol steps. Connect as the reader role. Tables are listed once, in a module constant. A table with no changed rows writes no file.
   Done when: after `erp seed`, one extract writes one file per table whose row count equals the table's.
-- [ ] **Prove idempotency.** 
+- [x] **Prove idempotency.** 
   Done when: a pytest runs extract twice with no source change and the distinct (`id`, `updated_at`) pairs across all raw files equal those after the first run.
-- [ ] **Prove incremental capture.**
+- [x] **Prove incremental capture.**
   Done when: a pytest updates three rows and inserts two between extracts, and the second run's file holds those five rows plus only rows inside the lookback window.
-- [ ] **Prove the lookback catches a late commit.**
+- [x] **Prove the lookback catches a late commit.**
   Done when: a pytest opens a transaction, updates a row, runs an extract, commits, runs a second extract, and finds the update in raw.
-- [ ] **Prove the commit point.**
+- [x] **Prove the commit point.**
   Done when: a pytest makes the state write fail, sees the watermark unchanged, runs extract again, and finds every changed row in raw.
-- [ ] **Log the run.** One line per table with the row count and file path, and one summary line with the `run_id` and duration.
+- [x] **Log the run.** One line per table with the row count and file path, and one summary line with the `run_id` and duration.
   Done when: the log of one run is enough to tell what was extracted without opening a file.
-- [ ] **Extend CI** with the new tests.
+- [x] **Extend CI** with the new tests.
   Done when: the CI commands pass locally.
 
 ## Acceptance
