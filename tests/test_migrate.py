@@ -24,7 +24,7 @@ def test_second_migrate_applies_nothing(empty_db: Settings) -> None:
     with connect(empty_db, autocommit=True) as conn:
         assert apply_migrations(conn) == []
         filenames = [r[0] for r in conn.execute("select filename from erp.schema_migrations")]
-    assert filenames == ["001_initial.sql", "002_inventory.sql"]
+    assert filenames == ["001_initial.sql", "002_inventory.sql", "003_sales_channel.sql"]
 
 
 def test_failing_migration_leaves_no_partial_change(empty_db: Settings, tmp_path: Path) -> None:

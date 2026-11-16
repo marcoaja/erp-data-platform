@@ -32,7 +32,7 @@ Raw-layer paths are specified under "Raw layer" in [ARCHITECTURE.md](ARCHITECTUR
 
 ## Part C: Schema evolution
 
-- [ ] **Reproduce the change.** A new migration adds a nullable `sales_channel` column to `erp.sales_orders`; the simulator starts filling it for new orders.
+- [x] **Reproduce the change.** A new migration adds a nullable `sales_channel` column to `erp.sales_orders`; the simulator starts filling it for new orders.
   Done when: `erp run` succeeds after the migration with no code change, proving that old and new raw files read together.
 - [ ] **Guard it with a test.** A pytest extracts, applies a migration that adds a column, extracts again, and runs `dbt build` successfully.
   Done when: the test passes and fails if `union_by_name` is removed from the source definition.

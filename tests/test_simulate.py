@@ -170,3 +170,19 @@ def test_deletes_only_happen_with_the_flag_and_never_empty_an_order(seeded_db: S
         ).fetchone()[0]
     assert ids - remaining  # some earlier lines are gone
     assert empty_orders == 0
+
+
+def test_new_orders_carry_a_sales_channel_and_seeded_orders_do_not(seeded_db: Settings) -> None:
+    with connect(seeded_db) as conn:
+        max_order = conn.execute("select max(id) from erp.sales_orders").fetchone()[0]
+    simulate(seeded_db, ticks=2, seed=5)
+    with connect(seeded_db) as conn:
+        old, new = (
+            conn.execute(
+                "select count(*), count(sales_channel) from erp.sales_orders where id " + condition,
+                (max_order,),
+            ).fetchone()
+            for condition in ("<= %s", "> %s")
+        )
+    assert old[1] == 0 and old[0] > 0
+    assert new[0] > 0 and new[0] == new[1]

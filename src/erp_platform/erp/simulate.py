@@ -28,6 +28,7 @@ ADVANCE_PROBABILITY = {"placed": 0.6, "confirmed": 0.4, "shipped": 0.3}
 NEXT_STATUS = {"placed": "confirmed", "confirmed": "shipped", "shipped": "delivered"}
 CANCEL_PROBABILITY = 0.05
 MOVE_DEALER_PROBABILITY = 0.15
+SALES_CHANNELS = ["dealer_portal", "phone", "email"]
 
 # A part below its reorder point arrives again after this many ticks.
 REPLENISH_DELAY_TICKS = (3, 6)
@@ -65,9 +66,10 @@ def create_orders(conn: psycopg.Connection, rng: random.Random) -> int:
         for _ in range(count):
             dealer_id, currency = rng.choice(dealers)
             (order_id,) = conn.execute(
-                "insert into erp.sales_orders (dealer_id, customer_id, status, currency_code)"
-                " values (%s, %s, 'placed', %s) returning id",
-                (dealer_id, rng.choice(customers[dealer_id]), currency),
+                "insert into erp.sales_orders"
+                " (dealer_id, customer_id, status, currency_code, sales_channel)"
+                " values (%s, %s, 'placed', %s, %s) returning id",
+                (dealer_id, rng.choice(customers[dealer_id]), currency, rng.choice(SALES_CHANNELS)),
             ).fetchone()
             lines = [
                 (
