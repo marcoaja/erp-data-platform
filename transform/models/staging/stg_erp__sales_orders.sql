@@ -23,6 +23,8 @@ renamed as (
         ordered_at,
         shipped_at,
         delivered_at,
+        -- Null on orders that predate the column (see docs/incidents/schema-evolution.md).
+        sales_channel,
         created_at,
         updated_at,
         _run_id,

@@ -72,6 +72,8 @@ models:
       - name: order_id
         description: Primary key of the source row; repeats across versions.
         data_tests: [not_null]
+      - name: sales_channel
+        description: How the order was placed; null on versions that predate the column.
       - name: updated_at
         description: When the ERP wrote this version. With the id it identifies a version.
         data_tests: [not_null]

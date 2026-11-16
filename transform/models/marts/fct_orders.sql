@@ -37,6 +37,7 @@ select
     orders.ordered_at,
     orders.shipped_at,
     orders.delivered_at,
+    orders.sales_channel,
     orders.hours_to_ship,
     orders.hours_to_deliver
 from orders
