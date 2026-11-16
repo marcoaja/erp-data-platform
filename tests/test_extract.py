@@ -91,7 +91,10 @@ def test_new_source_column_flows_into_raw_and_old_files_stay_readable(source: Se
     files = raw_files(storage, "parts")
     assert len(files) == 2
     assert "origin" not in storage.read_parquet(files[0]).column_names
-    assert storage.read_parquet(files[1]).column("origin").to_pylist() == ["JP"]
+    # A new column makes the extract re-read the table in full, so the new file always has it.
+    origins = storage.read_parquet(files[1]).column("origin").to_pylist()
+    assert origins.count("JP") == 1 and origins.count(None) == len(origins) - 1
+    assert len(origins) == source_count(source, "parts")
 
 
 def test_second_extract_without_changes_adds_nothing(source: Settings) -> None:

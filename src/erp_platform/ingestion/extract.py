@@ -16,6 +16,7 @@ log = logging.getLogger(__name__)
 
 TABLES = ["dealers", "customers", "parts", "sales_orders", "order_lines", "inventory"]
 WATERMARKS = "_state/watermarks.json"
+SCHEMAS = "_state/schemas.json"
 RUN_ID_FORMAT = "%Y%m%dT%H%M%SZ"
 
 _SIMPLE_TYPES: dict[str, pa.DataType] = {
@@ -60,10 +61,15 @@ def arrow_type(conn: psycopg.Connection, column: psycopg.Column) -> pa.DataType:
     raise TypeError(f"column {column.name!r} has unmapped Postgres type {name!r}")
 
 
+class SourceSchemaChanged(RuntimeError):
+    """A source column was removed or retyped since the last run."""
+
+
 def extract(settings: Settings) -> Extraction:
     started = time.monotonic()
     storage = open_storage(settings)
     stored = storage.read_json(WATERMARKS) or {}
+    stored_schemas = storage.read_json(SCHEMAS) or {}
     lookback = timedelta(seconds=settings.extract_lookback_seconds)
     rows: dict[str, int] = {}
     previous_run_id = (
@@ -83,10 +89,17 @@ def extract(settings: Settings) -> Extraction:
             time.sleep(1.0 - cutoff.microsecond / 1e6 + 0.01)
             cutoff = conn.execute("select now()").fetchone()[0].astimezone(UTC)
             run_id = cutoff.strftime(RUN_ID_FORMAT)
+        # Checked before any file is written, so a refused run leaves raw and state untouched.
+        schemas = {table: _column_types(conn, table) for table in TABLES}
+        added = _check_schemas(stored_schemas, schemas)
         extracted_at = datetime.now(UTC)
         for table in TABLES:
             watermark = stored.get(table)
             since = datetime.fromisoformat(watermark) - lookback if watermark else None
+            if table in added:
+                # Re-read the table in full so that at least one file carries the new column;
+                # staging selects it by name, and a quiet table would otherwise have none.
+                since = None
             rows[table] = _extract_table(conn, storage, table, since, cutoff, run_id, extracted_at)
         for table in TABLES:
             _write_keys(conn, storage, table)
@@ -95,6 +108,9 @@ def extract(settings: Settings) -> Extraction:
             f"control_totals/extract_date={cutoff:%Y-%m-%d}/{run_id}.parquet", totals
         )
 
+    # Written before the watermarks: a crash between the two re-extracts the window, and the
+    # files carrying the new column already exist.
+    storage.write_json(SCHEMAS, {**stored_schemas, **schemas})
     # The state file is the commit point: a crash before this line re-extracts the same window.
     storage.write_json(WATERMARKS, {**stored, **{t: cutoff.isoformat() for t in TABLES}})
     log.info(
@@ -175,3 +191,41 @@ def _write_keys(conn: psycopg.Connection, storage: Storage, table: str) -> None:
         f"_keys/{table}/latest.parquet", pa.table({"id": pa.array(ids, pa.int64())})
     )
     log.info("extract table=%s live_keys=%d", table, len(ids))
+
+
+def _column_types(conn: psycopg.Connection, table: str) -> dict[str, str]:
+    cur = conn.execute(sql.SQL("select * from erp.{} limit 0").format(sql.Identifier(table)))
+    return {col.name: str(arrow_type(conn, col)) for col in cur.description or []}
+
+
+def _check_schemas(
+    stored: dict[str, dict[str, str]], current: dict[str, dict[str, str]]
+) -> dict[str, list[str]]:
+    """Return the added columns per table; raise when any stored column was removed or retyped.
+
+    Reading old and new files together would turn a removed or retyped column into silent nulls
+    or casts, so those changes stop the run until an operator accepts them.
+    """
+    added: dict[str, list[str]] = {}
+    breaking: list[str] = []
+    for table, columns in current.items():
+        previous = stored.get(table)
+        if previous is None:
+            continue
+        breaking += [f"{table}.{c} was removed" for c in previous if c not in columns]
+        breaking += [
+            f"{table}.{c} changed type from {previous[c]} to {columns[c]}"
+            for c in previous
+            if c in columns and columns[c] != previous[c]
+        ]
+        if new := [c for c in columns if c not in previous]:
+            added[table] = new
+            log.warning("source schema: table=%s added columns=%s", table, ", ".join(new))
+    if breaking:
+        raise SourceSchemaChanged(
+            "source schema changed: "
+            + "; ".join(breaking)
+            + ". Nothing was written. To accept an intended change, follow"
+            " docs/incidents/schema-evolution.md."
+        )
+    return added

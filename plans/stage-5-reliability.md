@@ -34,11 +34,11 @@ Raw-layer paths are specified under "Raw layer" in [ARCHITECTURE.md](ARCHITECTUR
 
 - [x] **Reproduce the change.** A new migration adds a nullable `sales_channel` column to `erp.sales_orders`; the simulator starts filling it for new orders.
   Done when: `erp run` succeeds after the migration with no code change, proving that old and new raw files read together.
-- [ ] **Guard it with a test.** A pytest extracts, applies a migration that adds a column, extracts again, and runs `dbt build` successfully.
+- [x] **Guard it with a test.** A pytest extracts, applies a migration that adds a column, extracts again, and runs `dbt build` successfully.
   Done when: the test passes and fails if `union_by_name` is removed from the source definition.
-- [ ] **Expose the column.** Add `sales_channel` to `stg_erp__sales_orders` and `fct_orders`, null for orders that predate it.
+- [x] **Expose the column.** Add `sales_channel` to `stg_erp__sales_orders` and `fct_orders`, null for orders that predate it.
   Done when: `accepted_values` on the column passes with nulls allowed.
-- [ ] **Detect breaking changes.** `erp extract` stores each table's column names and types in `_state/schemas.json` and compares them at the start of every run. An added column is logged and accepted. A removed or retyped column raises an error naming the table and column before anything is written, because reading old and new files together would otherwise turn the change into silent nulls.
+- [x] **Detect breaking changes.** `erp extract` stores each table's column names and types in `_state/schemas.json` and compares them at the start of every run. An added column is logged and accepted. A removed or retyped column raises an error naming the table and column before anything is written, because reading old and new files together would otherwise turn the change into silent nulls.
   Done when: a pytest drops a source column and sees the run fail with that column's name, and the watermark unchanged.
 - [ ] **Write `docs/incidents/schema-evolution.md`.** Which changes the pipeline absorbs, which it stops on, why, and how an operator accepts an intended breaking change.
   Done when: the accept procedure in the document works when followed in a pytest.
