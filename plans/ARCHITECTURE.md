@@ -42,6 +42,7 @@ src/erp_platform/
   erp/              migrations/*.sql, migrate.py, seed.py, simulate.py
   ingestion/        extract.py, fx.py
   pipeline.py       erp transform (dbt subprocess) and erp run: the ordered steps and failure handling
+  publish.py        erp publish: marts to serving Parquet; the last-success marker
   alerting.py
 transform/          dbt project (models/staging, models/marts, tests, analyses)
 dashboard/app.py
@@ -63,7 +64,7 @@ plans/
 | `erp simulate --ticks N` / `--interval S` | Runs N business ticks and exits, or loops forever with S seconds between ticks; `--with-deletes` adds hard deletes (stage 5) | 1 |
 | `erp extract` | Writes changed rows to the raw layer and advances the watermark | 2 |
 | `erp transform` | Runs `dbt build` for the configured target | 3 |
-| `erp run` | Runs the pipeline steps in order (extract, fx, transform); exits non-zero on the first hard failure; an `erp fx` failure only logs a warning | 3 |
+| `erp run` | Runs the pipeline steps in order (extract, fx, transform, publish) and then records the last-success marker; exits non-zero on the first hard failure; an `erp fx` failure only logs a warning | 3 |
 | `erp fx` | Fetches daily exchange rates into the raw layer | 4 |
 | `erp publish` | Exports the dashboard's marts to serving Parquet; does not touch the last-success marker | 6 |
 | `erp snowflake-load` | Copies raw Parquet from the bucket into Snowflake `RAW` tables | 7 |

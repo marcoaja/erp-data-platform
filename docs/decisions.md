@@ -237,13 +237,27 @@ Entry format: date, decision, alternatives considered, reason.
 
 ## 2026-11-16: Publish retries the rename on Windows
 
-- **Decision.** The rename into place retries on `PermissionError` for up to five seconds.
+- **Decision.** The rename into place retries on `PermissionError` for up to five seconds, logging each retry.
+- **Alternatives.** Fail at once and let the next scheduled run retry; copy over the target in place (readers could see a half-written file); an advisory lock file shared with the dashboard.
 - **Reason.** Windows refuses to replace a file a reader has open; POSIX does not. The dashboard's reads are short. The deployment host is Linux, so this only matters on the development machine, and a hard failure after five seconds still propagates.
 
 ## 2026-11-16: `SCHEDULE_INTERVAL_MINUTES` is a setting, not a constant
 
 - **Decision.** The dashboard reads the schedule interval (default 30) from the environment through `load_dashboard_settings`, which needs no Postgres or warehouse variable.
+- **Alternatives.** A constant in the dashboard; writing the interval into the marker file at publish time; reusing `load_settings` (the dashboard would then need Postgres and warehouse variables).
 - **Reason.** The staleness threshold must follow the cron entry, and the dashboard has to start without the variables `load_settings` requires.
+
+## 2026-11-17: Publish stages every file, then renames dimensions before facts
+
+- **Decision.** `publish()` writes every temporary file first, then renames them with dimensions ahead of facts. The marker is written by `erp run` after `publish()` returns, not by `publish()`.
+- **Alternatives.** Rename each file right after writing it (the first version: a failure part-way left new facts beside old dimensions); a versioned directory with a pointer file, which swaps the whole generation atomically but makes the dashboard resolve the pointer and needs old generations pruned.
+- **Reason.** Surrogate keys hash (`id`, `valid_from`), so new dimensions still hold every key the old facts use, and a reader between two renames can still join. Renames are the only window left, and each is atomic. A failed export never replaces anything.
+
+## 2026-11-16: `[tool.uv] default-groups` installs the dashboard group by default
+
+- **Decision.** `pyproject.toml` sets `default-groups = ["dev", "dashboard"]`, so a plain `uv sync` installs Streamlit.
+- **Alternatives.** Leave `dashboard` opt-in (`uv sync --group dashboard`); make Streamlit a main dependency; skip the dashboard tests when it is missing.
+- **Reason.** The dashboard tests run in the normal pytest suite and need Streamlit, so a contributor who runs `uv sync` and `pytest` must not hit an import error. A main dependency would put Streamlit into any future pipeline-only image.
 
 ## Deferred
 
@@ -251,3 +265,7 @@ Entry format: date, decision, alternatives considered, reason.
 - Log-based change data capture (for example Debezium on the Postgres write-ahead log). It would capture deletes without a key read, and the intermediate versions that two extracts collapse into one. It needs logical replication on the ERP and a connector to operate, which is more than this scale and the 4 GB VPS justify. Revisit when the full key read per run or the lost intermediate versions become the problem.
 - Duplicate-customer matching. The ERP can hold the same customer twice under different ids; resolving that needs fuzzy matching and a survivorship rule, which does not serve any of the three business questions. Revisit when a question counts customers.
 - An `erp accept-schema` command that edits `_state/schemas.json`. Revisit when accepting a schema change stops being rare.
+- `erp fx` starts from the earliest order only when the fx raw layer is empty, so orders older than the stored rates are never backfilled. `REVISION_DAYS` has two meanings: how far back a refetch reaches, and how far before the earliest order the first fetch starts. Revisit when orders older than the stored rates appear, or when the two meanings need different values.
+- `tests/test_fx.py` builds its `fx_settings` by hand instead of using the `source`/`pipeline_settings` fixtures, so it can drift from the guard in `source` that keeps tests off the developer's files. Revisit when a change to `Settings` breaks it.
+- Concurrent manual `erp publish` runs share the same temporary file names. Host cron's `flock` covers `erp run`; revisit if publish is run by hand beside a scheduled run (a unique temporary name per run would fix it).
+- The dashboard's empty-state messages do not name which mart is missing. Revisit when a partial serving directory confuses an operator.

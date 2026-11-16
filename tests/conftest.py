@@ -89,6 +89,7 @@ def source(seeded_db: Settings, tmp_path: Path) -> Settings:
         serving_dir=str(tmp_path / "serving"),
     )
     assert Path(settings.warehouse_path).is_relative_to(tmp_path)
+    assert Path(settings.serving_dir).is_relative_to(tmp_path)
     return settings
 
 
