@@ -152,7 +152,7 @@ Metrics in `control_totals`: `row_count` for every table, `sum_quantity` and `su
 
 Guarantees and their reasons:
 
-- **At-least-once delivery.** A crash between step 5's writes re-extracts the same rows next run. Staging removes the duplicates, so a re-run changes nothing downstream.
+- **At-least-once delivery.** A crash between step 6's writes re-extracts the same rows next run. Staging removes the duplicates, so a re-run changes nothing downstream.
 - **Late commits are caught.** A transaction that started before the previous cutoff and committed after it has an `updated_at` below the watermark. The lookback overlap re-reads that window. A transaction open longer than the lookback is missed; reconciliation detects it.
 - **Intermediate versions can be lost.** Two updates between extracts leave only the second in raw. Closing that gap needs log-based CDC, which is deferred.
 
