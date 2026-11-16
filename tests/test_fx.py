@@ -1,12 +1,13 @@
 import dataclasses
 import logging
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
 import pyarrow as pa
 import pytest
 from fake_frankfurter import FakeFrankfurter, rate_for
+from helpers import query
 
 from erp_platform.cli import main
 from erp_platform.config import Settings
@@ -39,13 +40,13 @@ def first_order_date(settings: Settings) -> date:
         ).fetchone()[0]
 
 
-def test_first_run_starts_at_the_earliest_order_and_writes_the_rates(
+def test_first_run_starts_a_week_before_the_earliest_order_and_writes_the_rates(
     fx_settings: Settings, fx_server: FakeFrankfurter
 ) -> None:
     start = first_order_date(fx_settings)
     written = fx(fx_settings)
 
-    assert fx_server.requests[0]["from"] == start.isoformat()
+    assert fx_server.requests[0]["from"] == (start - timedelta(days=7)).isoformat()
     assert fx_server.requests[0]["base"] == "JPY"
     assert fx_server.requests[0]["quotes"] == "IDR,THB"
     table = stored(fx_settings)
@@ -56,7 +57,32 @@ def test_first_run_starts_at_the_earliest_order_and_writes_the_rates(
     assert {r["base"] for r in rows} == {"JPY"}
     sample = next(r for r in rows if r["quote"] == "IDR")
     assert sample["rate"] == Decimal(str(rate_for("IDR", sample["date"])))
-    assert min(r["date"] for r in rows) >= start
+    assert min(r["date"] for r in rows) >= start - timedelta(days=7)
+
+
+def test_orders_on_a_weekend_at_the_start_of_history_still_get_a_jpy_amount(
+    fx_settings: Settings,
+) -> None:
+    saturday = date(2026, 1, 3)  # the feed publishes nothing until Monday the 5th
+    assert saturday.weekday() == 5
+    with connect(fx_settings, autocommit=True) as conn:
+        # Dimensions are valid from their creation, so the master data must predate the order.
+        for table in ("dealers", "customers", "parts"):
+            conn.execute(
+                f"update erp.{table} set created_at = %s", (datetime(2025, 12, 1, tzinfo=UTC),)
+            )
+        conn.execute(
+            "update erp.sales_orders set ordered_at = %s"
+            " where id = (select min(id) from erp.sales_orders)",
+            (datetime(2026, 1, 3, 10, tzinfo=UTC),),
+        )
+
+    # run() ends in dbt build, whose not_null test on fct_sales.amount_jpy is the failing check.
+    run(fx_settings)
+
+    assert query(fx_settings, "select count(*) from marts.fct_sales where amount_jpy is null") == [
+        (0,)
+    ]
 
 
 def test_second_run_rereads_seven_days_and_adds_no_new_dates(

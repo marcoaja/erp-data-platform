@@ -79,10 +79,13 @@ def fx(settings: Settings) -> int:
     storage = open_storage(settings)
     last = _last_stored_date(storage)
     if last is None:
-        start = _first_order_date(settings)
-        if start is None:
+        first_order = _first_order_date(settings)
+        if first_order is None:
             log.info("fx skipped: no orders to price")
             return 0
+        # Start before the first order: the feed skips weekends and holidays, and an order on such
+        # a day needs the previous published rate to be forward-filled.
+        start = first_order - timedelta(days=REVISION_DAYS)
     else:
         start = last - timedelta(days=REVISION_DAYS)
     now = datetime.now(UTC)
