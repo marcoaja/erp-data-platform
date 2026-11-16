@@ -196,7 +196,7 @@ Models that need the current day call the `today()` macro (the UTC calendar day)
 
 - generic tests on every model: `unique` and `not_null` on keys, `relationships` from facts to dimensions, `accepted_values` on status and currency
 - unit tests for the SCD2 window logic and the as-of join in `fct_sales`
-- one singular test per invariant that spans models, for example SCD2 intervals of one `id` never overlap, and `reconciliation_matches_source`: the latest run's totals all match. A failed `erp transform` prints the mismatching table and metric
+- one singular test per invariant that spans models, for example SCD2 intervals of one `id` never overlap, and `reconciliation_matches_source`: the totals of the newest extract (by control totals, not by the history table) all match, and that run has comparison rows. A failed `erp transform` prints the mismatching table and metric
 
 ## Serving
 

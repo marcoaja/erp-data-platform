@@ -1,5 +1,6 @@
 import subprocess
 
+import duckdb
 import pytest
 from helpers import query
 
@@ -47,6 +48,34 @@ def test_an_edited_raw_value_fails_the_run_and_names_the_table_and_metric(
     output = capfd.readouterr().out
     assert "order_lines" in output.split("reconciliation_matches_source")[-1]
     assert "sum_quantity" in output
+
+
+def test_a_later_run_id_in_the_history_cannot_hide_a_mismatch_in_the_current_run(
+    pipeline_settings: Settings,
+) -> None:
+    run(pipeline_settings)
+    warehouse = duckdb.connect(pipeline_settings.warehouse_path)
+    try:
+        # A matching row from a run id that sorts after every real one, as a clock step back would
+        # leave in the history.
+        warehouse.execute(
+            "insert into marts.reconciliation_runs"
+            " select '99991231T235959Z', table_name, metric, source_value, warehouse_value, 0, true"
+            " from marts.reconciliation_runs"
+        )
+    finally:
+        warehouse.close()
+    storage = open_storage(pipeline_settings)
+    (path,) = [f for f in storage.list_files("order_lines") if f.endswith(".parquet")]
+    lines = storage.read_parquet(path)
+    quantities = lines["quantity"].to_pylist()
+    quantities[0] += 1
+    storage.write_parquet(
+        path, lines.set_column(lines.schema.get_field_index("quantity"), "quantity", [quantities])
+    )
+
+    with pytest.raises(subprocess.CalledProcessError):
+        run(pipeline_settings)
 
 
 def test_hard_deleted_lines_leave_the_facts_and_the_totals_still_match(
