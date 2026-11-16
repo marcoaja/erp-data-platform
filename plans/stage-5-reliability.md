@@ -12,11 +12,11 @@ Raw-layer paths are specified under "Raw layer" in [ARCHITECTURE.md](ARCHITECTUR
 
 ## Part A: Reconciliation
 
-- [ ] **Write control totals during extract.** In the same snapshot transaction, compute per table: row count, and for `order_lines` the sum of `quantity` and of `quantity * unit_price`; for `inventory` the sum of `quantity_on_hand`. Write them to `control_totals/…/<run_id>.parquet` with columns `run_id`, `table_name`, `metric`, `value`.
+- [x] **Write control totals during extract.** In the same snapshot transaction, compute per table: row count, and for `order_lines` the sum of `quantity` and of `quantity * unit_price`; for `inventory` the sum of `quantity_on_hand`. Write them to `control_totals/…/<run_id>.parquet` with columns `run_id`, `table_name`, `metric`, `value`.
   Done when: a pytest compares the file's values with the same queries run by hand in one transaction.
-- [ ] **Write `reconciliation_runs`.** For the latest `run_id`, compare each control total with the same metric computed from the current staging rows. Columns: `run_id`, `table_name`, `metric`, `source_value`, `warehouse_value`, `difference`, `is_match`. Materialize it incrementally keyed on (`run_id`, `table_name`, `metric`) so earlier runs stay as history.
+- [x] **Write `reconciliation_runs`.** For the latest `run_id`, compare each control total with the same metric computed from the current staging rows. Columns: `run_id`, `table_name`, `metric`, `source_value`, `warehouse_value`, `difference`, `is_match`. Materialize it incrementally keyed on (`run_id`, `table_name`, `metric`) so earlier runs stay as history.
   Done when: after `erp run` on a fresh environment every row has `is_match = true`.
-- [ ] **Fail the build on a mismatch.** A singular test selects the latest run's rows where `is_match` is false.
+- [x] **Fail the build on a mismatch.** A singular test selects the latest run's rows where `is_match` is false.
   Done when: editing one raw value by hand makes `erp run` exit non-zero and name the table and metric.
 
 ## Part B: Hard deletes

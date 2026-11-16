@@ -13,8 +13,8 @@ log = logging.getLogger(__name__)
 DBT_PROJECT = Path(__file__).resolve().parents[2] / "transform"
 
 
-def dbt(settings: Settings, *args: str) -> None:
-    """Run dbt for the configured target; raises when dbt exits non-zero."""
+def dbt(settings: Settings, *args: str, check: bool = True) -> None:
+    """Run dbt for the configured target; raises when dbt exits non-zero unless `check` is off."""
     # Pass the settings explicitly so profiles.yml sees the same values as the rest of the code,
     # not whatever happens to be in the process environment.
     env = {
@@ -34,13 +34,19 @@ def dbt(settings: Settings, *args: str) -> None:
         "--profiles-dir",
         str(DBT_PROJECT),
     ]
-    subprocess.run(command, env=env, check=True)
+    subprocess.run(command, env=env, check=check)
 
 
 def transform(settings: Settings) -> None:
     if not (DBT_PROJECT / "dbt_packages").exists():
         dbt(settings, "deps")
-    dbt(settings, "build")
+    try:
+        dbt(settings, "build")
+    except subprocess.CalledProcessError:
+        # dbt reports a failed test by name and row count only. Print the mismatching table and
+        # metric so the failed run says what to look at; then let the failure propagate.
+        dbt(settings, "show", "--select", "reconciliation_matches_source", check=False)
+        raise
     log.info(
         "transform finished target=%s warehouse=%s", settings.dbt_target, settings.warehouse_path
     )

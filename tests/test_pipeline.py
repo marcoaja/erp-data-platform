@@ -1,49 +1,13 @@
 import dataclasses
 from pathlib import Path
 
-import duckdb
 import pytest
-from fake_frankfurter import FakeFrankfurter
+from helpers import mart_counts, query
 
 from erp_platform.config import Settings
 from erp_platform.db import connect
 from erp_platform.erp.simulate import simulate
 from erp_platform.pipeline import DBT_PROJECT, dbt, run
-
-MARTS = [
-    "dim_date",
-    "dim_customer",
-    "dim_dealer",
-    "dim_part",
-    "fct_sales",
-    "fct_orders",
-    "fx_rates_daily",
-    "fct_inventory_daily",
-    "rpt_stockout_risk",
-]
-
-
-@pytest.fixture
-def pipeline_settings(seeded_db: Settings, tmp_path: Path, fx_server: FakeFrankfurter) -> Settings:
-    """Seeded ERP copy with a private raw layer and warehouse file."""
-    return dataclasses.replace(
-        seeded_db,
-        raw_uri=str(tmp_path / "raw"),
-        warehouse_path=str(tmp_path / "warehouse.duckdb"),
-        fx_api_url=fx_server.url,
-    )
-
-
-def query(settings: Settings, sql: str) -> list[tuple]:
-    conn = duckdb.connect(settings.warehouse_path, read_only=True)
-    try:
-        return conn.execute(sql).fetchall()
-    finally:
-        conn.close()
-
-
-def mart_counts(settings: Settings) -> dict[str, int]:
-    return {m: query(settings, f"select count(*) from marts.{m}")[0][0] for m in MARTS}
 
 
 def test_running_twice_leaves_every_mart_unchanged(pipeline_settings: Settings) -> None:

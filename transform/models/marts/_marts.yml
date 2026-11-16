@@ -266,3 +266,31 @@ models:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns: [dealer_id, part_id]
+
+  - name: reconciliation_runs
+    description: >
+      Source control totals against warehouse totals. Grain: one row per extract run, table and
+      metric. Incremental: each run adds the rows of the latest extract and earlier runs stay as
+      history. A rebuilt warehouse starts with an empty history.
+    columns:
+      - name: run_id
+        description: Extract run the source totals were taken in.
+        data_tests: [not_null]
+      - name: table_name
+        data_tests: [not_null]
+      - name: metric
+        description: row_count, sum_quantity, sum_amount_local or sum_quantity_on_hand.
+        data_tests: [not_null]
+      - name: source_value
+        description: The total computed in the extract snapshot of the ERP.
+      - name: warehouse_value
+        description: The same total over the current staging rows; null when the warehouse has no such metric.
+      - name: difference
+        description: warehouse_value minus source_value.
+      - name: is_match
+        description: True when the two values are equal.
+        data_tests: [not_null]
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [run_id, table_name, metric]
