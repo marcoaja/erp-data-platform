@@ -9,7 +9,7 @@ Each stage file is a self-contained brief for one agent run. Stages run in order
 | 0 | [stage-0-foundation.md](stage-0-foundation.md) | none | done |
 | 1 | [stage-1-erp-source.md](stage-1-erp-source.md) | 0 | done |
 | 2 | [stage-2-ingestion.md](stage-2-ingestion.md) | 1 | done |
-| 3 | [stage-3-warehouse.md](stage-3-warehouse.md) | 2 | todo |
+| 3 | [stage-3-warehouse.md](stage-3-warehouse.md) | 2 | done |
 | 4 | [stage-4-business-marts.md](stage-4-business-marts.md) | 3 | todo |
 | 5 | [stage-5-reliability.md](stage-5-reliability.md) | 4 | todo |
 | 6 | [stage-6-deploy.md](stage-6-deploy.md) | 5 | todo |

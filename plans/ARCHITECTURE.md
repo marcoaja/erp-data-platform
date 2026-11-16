@@ -41,7 +41,7 @@ src/erp_platform/
   storage.py        one filesystem interface for local paths and s3:// URIs
   erp/              migrations/*.sql, migrate.py, seed.py, simulate.py
   ingestion/        extract.py, fx.py
-  pipeline.py       erp run: the ordered steps and failure handling
+  pipeline.py       erp transform (dbt subprocess) and erp run: the ordered steps and failure handling
   alerting.py
 transform/          dbt project (models/staging, models/marts, tests, analyses)
 dashboard/app.py
@@ -82,9 +82,9 @@ Every variable is read in `config.py` and listed in `.env.example`.
 | `RAW_URI` | Raw layer root: a local path or `s3://bucket/raw` |
 | `S3_ENDPOINT_URL`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_REGION` | Object storage credentials; unset for local paths. Leaving the endpoint unset targets AWS S3 |
 | `EXTRACT_LOOKBACK_SECONDS` | Overlap subtracted from the watermark; default 300 |
-| `WAREHOUSE_PATH` | DuckDB file written by dbt |
+| `WAREHOUSE_PATH` | DuckDB file written by dbt; required |
 | `SERVING_DIR` | Directory of published mart Parquet read by the dashboard |
-| `DBT_TARGET` | `local`, `r2`, or `snowflake` |
+| `DBT_TARGET` | `local`, `r2`, or `snowflake`; default `local` (only `local` exists until stage 6) |
 | `ALERT_WEBHOOK_URL` | Discord webhook; alerting is skipped when unset |
 | `SNOWFLAKE_ACCOUNT`, `SNOWFLAKE_USER`, `SNOWFLAKE_PRIVATE_KEY_PATH` | Stage 7 only |
 
@@ -181,9 +181,9 @@ One model per source table, named `stg_erp__<table>`, at **version grain**: one 
 | `rpt_stockout_risk` | one row per dealer and part | days of cover from trailing 28-day sales; at risk below 7 | 4 |
 | `reconciliation_runs` | one row per run and table | source control totals against warehouse totals, `is_match` | 5 |
 
-SCD2 dimensions are derived from the version history in staging with window functions: `valid_from` is the version's `updated_at`, `valid_to` is the next version's `updated_at`. The first known version of a row is valid from its `created_at`. Surrogate keys hash (`id`, `valid_from`).
+SCD2 dimensions are derived from the version history in staging with window functions: `valid_from` is the version's `updated_at`, `valid_to` is the next version's `updated_at`. The first known version of a row is valid from its `created_at`. Surrogate keys hash (`id`, `valid_from`). The current version has `valid_to is null`; an as-of join tests `valid_from <= t and (valid_to is null or t < valid_to)`.
 
-Marts are materialized as tables and rebuilt in full on every run.
+Staging and marts are materialized as tables and rebuilt in full on every run, in schemas `staging` and `marts` (a `generate_schema_name` override stops dbt prefixing them with the target schema). The DuckDB session runs in UTC so that casting a timestamp to a date is machine-independent; the Snowflake profile must do the same.
 
 ### Tests
 

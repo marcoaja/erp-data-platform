@@ -80,6 +80,54 @@ Entry format: date, decision, alternatives considered, reason.
 - **Alternatives.** Server-side cursor with batched row groups.
 - **Reason.** The first extract is 16,000 rows and takes 0.2 s. Batching is added when a single table passes about a million rows.
 
+## 2026-11-16: `valid_to` is null on the current dimension version
+
+- **Decision.** The open interval of an SCD2 row has `valid_to is null`; as-of joins use `valid_from <= t and (valid_to is null or t < valid_to)`.
+- **Alternatives.** A far-future sentinel such as `9999-12-31`.
+- **Reason.** Null states "no end" honestly and needs no magic date that differs in meaning per warehouse. The cost is one `is null` in each as-of join, kept identical in `fct_sales`, `fct_orders`, and the invariant test.
+
+## 2026-11-16: dbt schemas are used as configured; staging is materialized as tables
+
+- **Decision.** A `generate_schema_name` override uses `staging` and `marts` verbatim instead of dbt's `<target schema>_<custom>`. Staging is `table`, not `view`.
+- **Alternatives.** Default naming (`main_marts`); staging views.
+- **Reason.** The plan's acceptance query reads `marts.fct_sales`, and Snowflake will use the same schema names. Staging views would store the raw path inside the warehouse file; tables keep the file self-contained. Volume is small.
+
+## 2026-11-16: DuckDB session time zone is pinned to UTC
+
+- **Decision.** The `local` profile sets `settings: {TimeZone: UTC}`.
+- **Alternatives.** A dialect-specific `at time zone` expression in each model.
+- **Reason.** `cast(timestamptz as date)` follows the session time zone in DuckDB, which would make `order_date` depend on the machine running dbt. One profile setting keeps the model SQL portable. The Snowflake profile must set the equivalent (`timezone: UTC`) in stage 7.
+
+## 2026-11-16: `WAREHOUSE_PATH` is required; `DBT_TARGET` defaults to `local`
+
+- **Decision.** `load_settings` fails without `WAREHOUSE_PATH`. `erp transform` passes `RAW_URI`, `WAREHOUSE_PATH`, and `DBT_TARGET` to dbt explicitly. `profiles.yml` and the source still carry fallbacks, for tooling only.
+- **Alternatives.** Let dbt read the process environment; default the path in code.
+- **Reason.** One source of truth for the pipeline, and tests can point a run at temporary paths. The fallbacks let `sqlfluff` and `dbt debug` run without an env file, as the stage's acceptance commands require.
+
+## 2026-11-16: dbt runs as a subprocess of `python -m dbt.cli.main`, with `deps` on first use
+
+- **Decision.** `erp transform` shells out to the dbt in the same virtual environment and runs `dbt deps` only when `transform/dbt_packages` is missing.
+- **Alternatives.** dbt's programmatic `dbtRunner`; `deps` on every run.
+- **Reason.** A subprocess keeps dbt's own logging and exit code, which the stage asks for. `deps` on every run needs the network and rewrites the lock file for no gain; `package-lock.yml` pins the version.
+
+## 2026-11-16: Invariant tests recompute resolution from the fact's own keys
+
+- **Decision.** `fct_sales_resolves_one_version` checks the interval of the dealer and part version that each fact row points at, rather than repeating the join.
+- **Alternatives.** Rebuild the as-of join inside the test.
+- **Reason.** A test that copies the join shares its bug. Both invariants were confirmed to fail when the join upper bound or `valid_to` was removed.
+
+## 2026-11-16: `fct_sales` and `fct_orders` keep cancelled orders
+
+- **Decision.** Both facts carry `order_status`; cancelled rows are not filtered out.
+- **Alternatives.** Drop cancelled orders in the facts.
+- **Reason.** Fulfilment and sales marts in stage 4 choose their own filter, and a fact that hides rows cannot be reconciled against the source.
+
+## 2026-11-16: `dim_date` spans 2020 to 2030 with a minimal column set
+
+- **Decision.** A fixed date spine with year, month, day, and month start.
+- **Alternatives.** Derive the range from the data; add weekday and fiscal columns.
+- **Reason.** A fixed range never makes a fact miss its date after a late arrival. Extra columns wait for a stage that needs them.
+
 ## Deferred
 
 - Compaction of small raw files. Every run writes at most one file per table; at a five-minute schedule that is about 288 files per table per day, and listing and reading them starts to cost noticeably around tens of thousands of files per table (roughly a few months). Compact per `extract_date` partition then.
