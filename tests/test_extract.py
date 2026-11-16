@@ -208,3 +208,26 @@ def test_decimal_values_survive_exactly(source: Settings) -> None:
     raw = raw_rows(open_storage(source), "parts").to_pylist()
     assert isinstance(price, Decimal)
     assert next(r for r in raw if r["id"] == 1)["list_price_jpy"] == price
+
+
+def test_table_added_later_loads_in_full_without_rereading_the_others(source: Settings) -> None:
+    extract(source)
+    storage = open_storage(source)
+    marks = storage.read_json(WATERMARKS)
+    # Simulates a deployment that predates the inventory table: no watermark, no raw files.
+    del marks["inventory"]
+    storage.write_json(WATERMARKS, marks)
+    for path in raw_files(storage, "inventory"):
+        storage.fs.delete_file(f"{storage.root}/{path}")
+    with connect(source) as conn:
+        conn.execute("update erp.parts set list_price_jpy = list_price_jpy + 1 where id = 1")
+
+    extract(source)
+
+    inventory_files = raw_files(storage, "inventory")
+    assert len(inventory_files) == 1
+    assert storage.read_parquet(inventory_files[0]).num_rows == source_count(source, "inventory")
+    new_part_files = raw_files(storage, "parts")
+    assert len(new_part_files) == 2
+    assert storage.read_parquet(new_part_files[1]).num_rows == 1
+    assert set(storage.read_json(WATERMARKS)) == set(TABLES)

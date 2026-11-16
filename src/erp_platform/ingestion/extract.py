@@ -13,7 +13,7 @@ from erp_platform.storage import Storage, open_storage
 
 log = logging.getLogger(__name__)
 
-TABLES = ["dealers", "customers", "parts", "sales_orders", "order_lines"]
+TABLES = ["dealers", "customers", "parts", "sales_orders", "order_lines", "inventory"]
 WATERMARKS = "_state/watermarks.json"
 RUN_ID_FORMAT = "%Y%m%dT%H%M%SZ"
 
