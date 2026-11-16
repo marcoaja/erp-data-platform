@@ -8,3 +8,6 @@ erp_warehouse:
       path: "{{ env_var('WAREHOUSE_PATH', 'data/warehouse.duckdb') }}"
       schema: main
       threads: 4
+      # Casting timestamptz to date must use the UTC calendar day, not the host's.
+      settings:
+        TimeZone: UTC

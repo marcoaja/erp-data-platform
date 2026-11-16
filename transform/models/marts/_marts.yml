@@ -1,0 +1,184 @@
+version: 2
+
+models:
+  - name: dim_date
+    description: "Calendar day. Grain: one row per day from 2020-01-01 to 2030-12-31."
+    columns:
+      - name: date_day
+        description: The calendar day; the key facts join on.
+        data_tests: [unique, not_null]
+      - name: month_start
+        description: First day of the month containing date_day.
+
+  - name: dim_customer
+    description: "Customer, current values only. Grain: one row per customer."
+    columns:
+      - name: customer_key
+        description: Surrogate key, a hash of customer_id.
+        data_tests: [unique, not_null]
+      - name: customer_id
+        description: Customer id in the ERP.
+        data_tests: [unique, not_null]
+
+  - name: dim_dealer
+    description: >
+      Dealer history, slowly changing dimension type 2. Grain: one row per dealer version.
+    columns:
+      - name: dealer_key
+        description: Surrogate key, a hash of dealer_id and valid_from.
+        data_tests: [unique, not_null]
+      - name: dealer_id
+        description: Dealer id in the ERP; repeats across versions.
+        data_tests: [not_null]
+      - name: valid_from
+        description: >
+          Start of the interval, inclusive. The version's updated_at, except the first known
+          version, which starts at the created_at of the row.
+        data_tests: [not_null]
+      - name: valid_to
+        description: End of the interval, exclusive; null on the current version.
+      - name: is_current
+        description: True on the newest version of the dealer.
+        data_tests: [not_null]
+      - name: country_code
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [JP, ID, TH]
+      - name: currency_code
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [JPY, IDR, THB]
+
+  - name: dim_part
+    description: >
+      Part history, slowly changing dimension type 2, tracking list price and descriptive
+      attributes. Grain: one row per part version.
+    columns:
+      - name: part_key
+        description: Surrogate key, a hash of part_id and valid_from.
+        data_tests: [unique, not_null]
+      - name: part_id
+        description: Part id in the ERP; repeats across versions.
+        data_tests: [not_null]
+      - name: list_price_jpy
+        description: List price in JPY while this version was valid.
+        data_tests: [not_null]
+      - name: valid_from
+        description: >
+          Start of the interval, inclusive. The version's updated_at, except the first known
+          version, which starts at the created_at of the row.
+        data_tests: [not_null]
+      - name: valid_to
+        description: End of the interval, exclusive; null on the current version.
+      - name: is_current
+        description: True on the newest version of the part.
+        data_tests: [not_null]
+
+  - name: fct_orders
+    description: >
+      Sales orders in their current state. Grain: one row per order. Cancelled orders are
+      included with their status.
+    columns:
+      - name: order_id
+        description: Order id in the ERP.
+        data_tests: [unique, not_null]
+      - name: order_number
+        description: Business order number, a degenerate dimension.
+        data_tests: [unique, not_null]
+      - name: dealer_key
+        description: Dealer version in force at ordered_at.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_dealer')
+                field: dealer_key
+      - name: customer_key
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_customer')
+                field: customer_key
+      - name: order_date
+        description: UTC calendar day of ordered_at.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+      - name: order_status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [placed, confirmed, shipped, delivered, cancelled]
+      - name: currency_code
+        description: Currency of the prices on the order.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [JPY, IDR, THB]
+      - name: hours_to_ship
+        description: Hours from order to shipment; null until the order ships.
+      - name: hours_to_deliver
+        description: Hours from order to delivery; null until the order is delivered.
+
+  - name: fct_sales
+    description: >
+      Parts sold. Grain: one row per order line, in its current state, including lines on
+      cancelled orders (filter on order_status).
+    columns:
+      - name: order_line_id
+        description: Order line id in the ERP.
+        data_tests: [unique, not_null]
+      - name: dealer_key
+        description: Dealer version in force at the ordered_at of the order.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_dealer')
+                field: dealer_key
+      - name: part_key
+        description: Part version in force at the ordered_at of the order.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_part')
+                field: part_key
+      - name: customer_key
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_customer')
+                field: customer_key
+      - name: order_date
+        description: UTC calendar day of the ordered_at of the order.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+      - name: order_status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [placed, confirmed, shipped, delivered, cancelled]
+      - name: currency_code
+        description: Currency of unit_price and amount_local.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [JPY, IDR, THB]
+      - name: unit_price
+        description: Price per unit in currency_code, as charged on the order.
+      - name: amount_local
+        description: quantity times unit_price, in currency_code. Rows of different currencies must not be summed together.
+      - name: list_price_jpy
+        description: List price in JPY of the part version in force at ordered_at; not the price charged.
