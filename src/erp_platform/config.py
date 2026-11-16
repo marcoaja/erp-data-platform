@@ -2,6 +2,8 @@ import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+DEFAULT_FX_API_URL = "https://api.frankfurter.dev/v2/rates"
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -16,6 +18,7 @@ class Settings:
     extract_lookback_seconds: int
     warehouse_path: str
     dbt_target: str
+    fx_api_url: str
     s3_endpoint_url: str | None
     s3_access_key_id: str | None
     s3_secret_access_key: str | None
@@ -44,6 +47,7 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         extract_lookback_seconds=int(env.get("EXTRACT_LOOKBACK_SECONDS") or 300),
         warehouse_path=require("WAREHOUSE_PATH"),
         dbt_target=env.get("DBT_TARGET") or "local",
+        fx_api_url=env.get("FX_API_URL") or DEFAULT_FX_API_URL,
         s3_endpoint_url=env.get("S3_ENDPOINT_URL") or None,
         s3_access_key_id=env.get("S3_ACCESS_KEY_ID") or None,
         s3_secret_access_key=env.get("S3_SECRET_ACCESS_KEY") or None,

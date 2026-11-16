@@ -9,6 +9,7 @@ from erp_platform.erp.migrate import migrate
 from erp_platform.erp.seed import seed
 from erp_platform.erp.simulate import simulate
 from erp_platform.ingestion.extract import extract
+from erp_platform.ingestion.fx import fx
 from erp_platform.pipeline import run, transform
 
 log = logging.getLogger("erp_platform")
@@ -42,8 +43,9 @@ def build_parser() -> argparse.ArgumentParser:
     mode.add_argument("--interval", type=float, help="tick forever, S seconds apart")
     sim.add_argument("--seed", type=int, help="fix the random generator")
     commands.add_parser("extract", help="copy changed ERP rows into the raw layer")
+    commands.add_parser("fx", help="fetch daily exchange rates into the raw layer")
     commands.add_parser("transform", help="build the warehouse with dbt")
-    commands.add_parser("run", help="extract, then transform; stops at the first failure")
+    commands.add_parser("run", help="extract, fx, then transform; stops at the first hard failure")
     return parser
 
 
@@ -64,6 +66,8 @@ def main(argv: Sequence[str] | None = None) -> None:
             simulate(load_settings(), ticks=args.ticks, interval=args.interval, seed=args.seed)
         elif args.command == "extract":
             extract(load_settings())
+        elif args.command == "fx":
+            fx(load_settings())
         elif args.command == "transform":
             transform(load_settings())
         elif args.command == "run":

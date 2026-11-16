@@ -14,9 +14,9 @@ Model grains are specified under "Marts" in [ARCHITECTURE.md](ARCHITECTURE.md); 
   Done when: a pytest runs 50 ticks and finds stock decreased for shipped parts, never negative, and at least one replenishment.
 - [x] **Extract inventory.** Add the table to the extract list.
   Done when: the first extract after the migration loads the table in full, with no change to the other tables' watermarks.
-- [ ] **Write `erp fx`.** Fetch JPY-based daily rates for IDR and THB into `<RAW_URI>/fx_rates/extract_date=…/<run_id>.parquet`. The first run starts at the earliest `ordered_at`; later runs start seven days before the last stored date, because published rates get revised. Use a request timeout and one retry. Add `httpx` as a dependency.
+- [x] **Write `erp fx`.** Fetch JPY-based daily rates for IDR and THB into `<RAW_URI>/fx_rates/extract_date=…/<run_id>.parquet`. The first run starts at the earliest `ordered_at`; later runs start seven days before the last stored date, because published rates get revised. Use a request timeout and one retry. Add `httpx` as a dependency.
   Done when: a pytest against a stubbed HTTP response writes the expected rows, and a second run on the same day adds no new dates.
-- [ ] **Make an API failure soft.** `erp run` logs a warning and continues when `erp fx` fails.
+- [x] **Make an API failure soft.** `erp run` logs a warning and continues when `erp fx` fails.
   Done when: a pytest with the API unreachable sees `erp run` finish with exit status 0 and a warning in the log.
 - [ ] **Write `stg_fx__rates` and `fx_rates_daily`.** Staging keeps the latest fetched value per date and currency. The daily model has a row for every calendar day, filled forward from the last published rate, plus a JPY row with rate 1.
   Done when: a dbt unit test with a Friday and a Monday rate expects Saturday and Sunday to carry Friday's value.

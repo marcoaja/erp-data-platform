@@ -3,6 +3,7 @@ from pathlib import Path
 
 import duckdb
 import pytest
+from fake_frankfurter import FakeFrankfurter
 
 from erp_platform.config import Settings
 from erp_platform.db import connect
@@ -12,12 +13,13 @@ MARTS = ["dim_date", "dim_customer", "dim_dealer", "dim_part", "fct_sales", "fct
 
 
 @pytest.fixture
-def pipeline_settings(seeded_db: Settings, tmp_path: Path) -> Settings:
+def pipeline_settings(seeded_db: Settings, tmp_path: Path, fx_server: FakeFrankfurter) -> Settings:
     """Seeded ERP copy with a private raw layer and warehouse file."""
     return dataclasses.replace(
         seeded_db,
         raw_uri=str(tmp_path / "raw"),
         warehouse_path=str(tmp_path / "warehouse.duckdb"),
+        fx_api_url=fx_server.url,
     )
 
 

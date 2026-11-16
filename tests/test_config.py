@@ -42,3 +42,8 @@ def test_optional_settings_default_when_unset() -> None:
 def test_dbt_target_defaults_to_local() -> None:
     assert load_settings(ENV).dbt_target == "local"
     assert load_settings({**ENV, "DBT_TARGET": "snowflake"}).dbt_target == "snowflake"
+
+
+def test_fx_api_url_defaults_to_frankfurter_and_can_be_overridden() -> None:
+    assert load_settings(ENV).fx_api_url == "https://api.frankfurter.dev/v2/rates"
+    assert load_settings({**ENV, "FX_API_URL": "http://x/rates"}).fx_api_url == "http://x/rates"

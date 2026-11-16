@@ -8,6 +8,7 @@ dependencies = [
     "dbt-duckdb>=1.11,<2",
     "duckdb>=2.0.0",
     "faker>=40.54.0",
+    "httpx>=0.28.1",
     "psycopg[binary]>=3.3.9",
     "pyarrow>=26.0.1",
 ]

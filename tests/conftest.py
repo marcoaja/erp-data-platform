@@ -4,6 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 
 import pytest
+from fake_frankfurter import FakeFrankfurter
 from psycopg import sql
 
 from erp_platform.config import Settings, load_settings
@@ -66,3 +67,11 @@ def seeded_db(base_settings: Settings, seeded_template: Settings) -> Iterator[Se
     """A private copy of the seeded database that a test may change."""
     with temp_database(base_settings, template=seeded_template.postgres_db) as settings:
         yield settings
+
+
+@pytest.fixture
+def fx_server() -> Iterator[FakeFrankfurter]:
+    server = FakeFrankfurter()
+    server.start()
+    yield server
+    server.stop()
