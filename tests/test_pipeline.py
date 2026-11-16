@@ -7,9 +7,20 @@ from fake_frankfurter import FakeFrankfurter
 
 from erp_platform.config import Settings
 from erp_platform.db import connect
-from erp_platform.pipeline import run
+from erp_platform.erp.simulate import simulate
+from erp_platform.pipeline import DBT_PROJECT, dbt, run
 
-MARTS = ["dim_date", "dim_customer", "dim_dealer", "dim_part", "fct_sales", "fct_orders"]
+MARTS = [
+    "dim_date",
+    "dim_customer",
+    "dim_dealer",
+    "dim_part",
+    "fct_sales",
+    "fct_orders",
+    "fx_rates_daily",
+    "fct_inventory_daily",
+    "rpt_stockout_risk",
+]
 
 
 @pytest.fixture
@@ -92,3 +103,40 @@ def test_failed_extract_stops_before_transform(pipeline_settings: Settings, tmp_
     with pytest.raises(Exception):  # noqa: B017 - any connection error must stop the run
         run(broken)
     assert not Path(pipeline_settings.warehouse_path).exists()
+
+
+def test_every_analysis_compiles_and_returns_rows(pipeline_settings: Settings) -> None:
+    # Stock only runs low once the simulator has shipped orders.
+    simulate(pipeline_settings, ticks=50, seed=7)
+    run(pipeline_settings)
+    assert (
+        query(pipeline_settings, "select count(*) from marts.rpt_stockout_risk where is_at_risk")[
+            0
+        ][0]
+        > 0
+    )
+
+    dbt(pipeline_settings, "compile")
+    compiled = sorted((DBT_PROJECT / "target/compiled/erp_warehouse/analyses").glob("*.sql"))
+    assert [f.name for f in compiled] == [
+        "q1_stockout_risk.sql",
+        "q2_fulfilment_time.sql",
+        "q3_sales_by_machine_model.sql",
+    ]
+    for analysis in compiled:
+        assert query(pipeline_settings, analysis.read_text(encoding="utf-8")), analysis.name
+
+
+def test_every_sale_converts_to_jpy_with_the_published_rate(pipeline_settings: Settings) -> None:
+    run(pipeline_settings)
+    # Orders on weekends and today have no published rate of their own (the fake API skips
+    # weekends), so the check also covers forward filling.
+    assert query(
+        pipeline_settings, "select count(*) from marts.fct_sales where amount_jpy is null"
+    )[0] == (0,)
+    jpy_sales = query(
+        pipeline_settings,
+        "select count(*) from marts.fct_sales where currency_code = 'JPY' "
+        "and amount_jpy <> amount_local",
+    )
+    assert jpy_sales[0] == (0,)

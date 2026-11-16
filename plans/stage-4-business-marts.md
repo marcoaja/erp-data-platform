@@ -18,13 +18,13 @@ Model grains are specified under "Marts" in [ARCHITECTURE.md](ARCHITECTURE.md); 
   Done when: a pytest against a stubbed HTTP response writes the expected rows, and a second run on the same day adds no new dates.
 - [x] **Make an API failure soft.** `erp run` logs a warning and continues when `erp fx` fails.
   Done when: a pytest with the API unreachable sees `erp run` finish with exit status 0 and a warning in the log.
-- [ ] **Write `stg_fx__rates` and `fx_rates_daily`.** Staging keeps the latest fetched value per date and currency. The daily model has a row for every calendar day, filled forward from the last published rate, plus a JPY row with rate 1.
+- [x] **Write `stg_fx__rates` and `fx_rates_daily`.** Staging keeps the latest fetched value per date and currency. The daily model has a row for every calendar day, filled forward from the last published rate, plus a JPY row with rate 1.
   Done when: a dbt unit test with a Friday and a Monday rate expects Saturday and Sunday to carry Friday's value.
-- [ ] **Add `amount_jpy` to `fct_sales`:** `amount_local / rate` on the order date.
+- [x] **Add `amount_jpy` to `fct_sales`:** `amount_local / rate` on the order date.
   Done when: `not_null` on `amount_jpy` passes and a unit test checks one IDR line by hand.
-- [ ] **Write `stg_erp__inventory` and `fct_inventory_daily`.**
+- [x] **Write `stg_erp__inventory` and `fct_inventory_daily`.**
   Done when: `unique` on (`dealer_id`, `part_id`, `date_key`) passes.
-- [ ] **Write `rpt_stockout_risk`.** Days of cover is current stock divided by average daily quantity sold over the trailing 28 days. A pair with no sales in that window has null days of cover and is not at risk.
+- [x] **Write `rpt_stockout_risk`.** Days of cover is current stock divided by average daily quantity sold over the trailing 28 days. A pair with no sales in that window has null days of cover and is not at risk.
   Done when: a unit test covers a part at risk, a part with ample stock, and a part with no sales.
 - [ ] **Answer the questions.** Three files in `transform/analyses/`, one per business question, each a single query over marts.
   Done when: each compiled query runs against the warehouse and returns rows.

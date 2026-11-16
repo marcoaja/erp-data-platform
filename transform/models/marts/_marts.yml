@@ -180,5 +180,89 @@ models:
         description: Price per unit in currency_code, as charged on the order.
       - name: amount_local
         description: quantity times unit_price, in currency_code. Rows of different currencies must not be summed together.
+      - name: amount_jpy
+        description: amount_local converted at the rate of the order date; JPY orders convert at 1.
+        data_tests: [not_null]
       - name: list_price_jpy
         description: List price in JPY of the part version in force at ordered_at; not the price charged.
+
+  - name: fx_rates_daily
+    description: >
+      Exchange rates by calendar day. Grain: one row per currency per day, from the first
+      published rate to today. Days without a published rate carry the last published value.
+      JPY has rate 1.
+    columns:
+      - name: date_day
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+      - name: currency_code
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [JPY, IDR, THB]
+      - name: rate
+        description: Units of currency_code per one JPY.
+        data_tests: [not_null]
+      - name: source_date
+        description: The day the rate was published; earlier than date_day on a filled day.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [date_day, currency_code]
+
+  - name: fct_inventory_daily
+    description: >
+      Stock levels by day. Grain: one row per dealer, part and day, from the day the stock row
+      was created to today, carrying the last known quantity on days without a change.
+    columns:
+      - name: dealer_id
+        description: Dealer id in the ERP.
+        data_tests: [not_null]
+      - name: part_id
+        description: Part id in the ERP.
+        data_tests: [not_null]
+      - name: date_key
+        description: The calendar day, a key of dim_date.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+      - name: quantity_on_hand
+        description: Units in stock at the end of the day.
+        data_tests: [not_null]
+      - name: reorder_point
+        description: Stock level below which the dealer reorders.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [dealer_id, part_id, date_key]
+
+  - name: rpt_stockout_risk
+    description: >
+      Stock cover per dealer and part today. Grain: one row per dealer and part that has a
+      stock record. Days of cover is stock divided by average daily units sold over the trailing
+      28 days, cancelled orders excluded; a pair with no sales in the window has null cover and
+      is not at risk.
+    columns:
+      - name: dealer_id
+        data_tests: [not_null]
+      - name: part_id
+        data_tests: [not_null]
+      - name: units_sold_28d
+        description: Units sold in the trailing 28 days.
+      - name: days_of_cover
+        description: Null when nothing was sold in the window.
+      - name: is_at_risk
+        description: True when days_of_cover is below 7.
+        data_tests: [not_null]
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [dealer_id, part_id]

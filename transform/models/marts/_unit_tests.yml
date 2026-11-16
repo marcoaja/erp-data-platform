@@ -36,6 +36,9 @@ unit_tests:
       - input: ref('dim_customer')
         rows:
           - {customer_key: c1, customer_id: 7}
+      - input: ref('fx_rates_daily')
+        rows:
+          - {date_day: "2026-02-15", currency_code: JPY, rate: 1}
     expect:
       rows:
         - {order_line_id: 1, dealer_key: d1, part_key: p1, customer_key: c1, list_price_jpy: 100, amount_local: 300.00}
@@ -59,6 +62,128 @@ unit_tests:
       - input: ref('dim_customer')
         rows:
           - {customer_key: c1, customer_id: 7}
+      - input: ref('fx_rates_daily')
+        rows:
+          - {date_day: "2026-03-01", currency_code: JPY, rate: 1}
     expect:
       rows:
         - {order_line_id: 1, part_key: p2, list_price_jpy: 120}
+
+  - name: fct_sales_converts_local_amounts_to_jpy_at_the_order_date_rate
+    model: fct_sales
+    given:
+      - input: ref('stg_erp__order_lines')
+        rows:
+          - {order_line_id: 1, order_id: 10, line_number: 1, part_id: 1, quantity: 2, unit_price: 1050.00, is_current: true}
+          - {order_line_id: 2, order_id: 11, line_number: 1, part_id: 1, quantity: 3, unit_price: 100.00, is_current: true}
+      - input: ref('stg_erp__sales_orders')
+        rows:
+          - {order_id: 10, order_number: SO-0000010, dealer_id: 5, customer_id: 7, status: placed, currency_code: IDR, ordered_at: "2026-03-02 12:00:00+00", is_current: true}
+          - {order_id: 11, order_number: SO-0000011, dealer_id: 5, customer_id: 7, status: placed, currency_code: JPY, ordered_at: "2026-03-02 13:00:00+00", is_current: true}
+      - input: ref('dim_dealer')
+        rows:
+          - {dealer_key: d1, dealer_id: 5, valid_from: "2026-01-01 00:00:00+00", valid_to: null}
+      - input: ref('dim_part')
+        rows:
+          - {part_key: p1, part_id: 1, list_price_jpy: 100, valid_from: "2026-01-01 00:00:00+00", valid_to: null}
+      - input: ref('dim_customer')
+        rows:
+          - {customer_key: c1, customer_id: 7}
+      - input: ref('fx_rates_daily')
+        rows:
+          - {date_day: "2026-03-01", currency_code: IDR, rate: 100}
+          - {date_day: "2026-03-02", currency_code: IDR, rate: 105}
+          - {date_day: "2026-03-02", currency_code: JPY, rate: 1}
+    expect:
+      rows:
+        - {order_line_id: 1, amount_local: 2100.00, amount_jpy: 20.00}
+        - {order_line_id: 2, amount_local: 300.00, amount_jpy: 300.00}
+
+  - name: fx_rates_daily_weekend_carries_the_friday_rate
+    model: fx_rates_daily
+    overrides:
+      macros:
+        today: "cast('2026-01-05' as date)"
+    given:
+      - input: ref('stg_fx__rates')
+        rows:
+          - {rate_date: "2026-01-02", currency_code: IDR, rate: 100}
+          - {rate_date: "2026-01-05", currency_code: IDR, rate: 110}
+      - input: ref('dim_date')
+        rows:
+          - {date_day: "2026-01-01"}
+          - {date_day: "2026-01-02"}
+          - {date_day: "2026-01-03"}
+          - {date_day: "2026-01-04"}
+          - {date_day: "2026-01-05"}
+          - {date_day: "2026-01-06"}
+    expect:
+      rows:
+        - {date_day: "2026-01-02", currency_code: IDR, rate: 100, source_date: "2026-01-02"}
+        - {date_day: "2026-01-03", currency_code: IDR, rate: 100, source_date: "2026-01-02"}
+        - {date_day: "2026-01-04", currency_code: IDR, rate: 100, source_date: "2026-01-02"}
+        - {date_day: "2026-01-05", currency_code: IDR, rate: 110, source_date: "2026-01-05"}
+        - {date_day: "2026-01-02", currency_code: JPY, rate: 1, source_date: "2026-01-02"}
+        - {date_day: "2026-01-03", currency_code: JPY, rate: 1, source_date: "2026-01-03"}
+        - {date_day: "2026-01-04", currency_code: JPY, rate: 1, source_date: "2026-01-04"}
+        - {date_day: "2026-01-05", currency_code: JPY, rate: 1, source_date: "2026-01-05"}
+
+  - name: fct_inventory_daily_carries_the_last_quantity_of_each_day_forward
+    model: fct_inventory_daily
+    overrides:
+      macros:
+        today: "cast('2026-03-05' as date)"
+    given:
+      - input: ref('stg_erp__inventory')
+        rows:
+          - {inventory_id: 1, dealer_id: 5, part_id: 9, quantity_on_hand: 50, reorder_point: 10, created_at: "2026-03-01 08:00:00+00", updated_at: "2026-03-01 10:00:00+00"}
+          - {inventory_id: 1, dealer_id: 5, part_id: 9, quantity_on_hand: 40, reorder_point: 10, created_at: "2026-03-01 08:00:00+00", updated_at: "2026-03-03 09:00:00+00"}
+          - {inventory_id: 1, dealer_id: 5, part_id: 9, quantity_on_hand: 35, reorder_point: 10, created_at: "2026-03-01 08:00:00+00", updated_at: "2026-03-03 15:00:00+00"}
+      - input: ref('dim_date')
+        rows:
+          - {date_day: "2026-02-28"}
+          - {date_day: "2026-03-01"}
+          - {date_day: "2026-03-02"}
+          - {date_day: "2026-03-03"}
+          - {date_day: "2026-03-04"}
+          - {date_day: "2026-03-05"}
+          - {date_day: "2026-03-06"}
+    expect:
+      rows:
+        - {dealer_id: 5, part_id: 9, date_key: "2026-03-01", quantity_on_hand: 50}
+        - {dealer_id: 5, part_id: 9, date_key: "2026-03-02", quantity_on_hand: 50}
+        - {dealer_id: 5, part_id: 9, date_key: "2026-03-03", quantity_on_hand: 35}
+        - {dealer_id: 5, part_id: 9, date_key: "2026-03-04", quantity_on_hand: 35}
+        - {dealer_id: 5, part_id: 9, date_key: "2026-03-05", quantity_on_hand: 35}
+
+  - name: rpt_stockout_risk_flags_low_cover_and_ignores_pairs_without_sales
+    model: rpt_stockout_risk
+    overrides:
+      macros:
+        today: "cast('2026-03-05' as date)"
+    given:
+      - input: ref('fct_inventory_daily')
+        rows:
+          - {dealer_id: 1, part_id: 1, date_key: "2026-03-05", quantity_on_hand: 5, reorder_point: 10}
+          - {dealer_id: 1, part_id: 2, date_key: "2026-03-05", quantity_on_hand: 100, reorder_point: 10}
+          - {dealer_id: 1, part_id: 3, date_key: "2026-03-05", quantity_on_hand: 10, reorder_point: 10}
+          - {dealer_id: 1, part_id: 1, date_key: "2026-03-04", quantity_on_hand: 1, reorder_point: 10}
+      - input: ref('fct_sales')
+        rows:
+          - {dealer_key: d1, part_key: p1, order_date: "2026-03-01", order_status: shipped, quantity: 28}
+          - {dealer_key: d1, part_key: p2, order_date: "2026-02-20", order_status: delivered, quantity: 14}
+          - {dealer_key: d1, part_key: p3, order_date: "2026-03-01", order_status: cancelled, quantity: 50}
+          - {dealer_key: d1, part_key: p3, order_date: "2026-01-01", order_status: delivered, quantity: 50}
+      - input: ref('dim_dealer')
+        rows:
+          - {dealer_key: d1, dealer_id: 1, dealer_code: JP-001, dealer_name: Alpha, region: Kanto, is_current: true}
+      - input: ref('dim_part')
+        rows:
+          - {part_key: p1, part_id: 1, part_number: P-1, part_name: Piston, machine_model: T-250, is_current: true}
+          - {part_key: p2, part_id: 2, part_number: P-2, part_name: Gasket, machine_model: T-250, is_current: true}
+          - {part_key: p3, part_id: 3, part_number: P-3, part_name: Valve, machine_model: T-250, is_current: true}
+    expect:
+      rows:
+        - {dealer_id: 1, part_id: 1, units_sold_28d: 28, days_of_cover: 5.00, is_at_risk: true}
+        - {dealer_id: 1, part_id: 2, units_sold_28d: 14, days_of_cover: 200.00, is_at_risk: false}
+        - {dealer_id: 1, part_id: 3, units_sold_28d: 0, days_of_cover: null, is_at_risk: false}

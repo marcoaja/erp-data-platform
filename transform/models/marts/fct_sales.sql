@@ -28,6 +28,12 @@ customers as (
 
     select * from {{ ref('dim_customer') }}
 
+),
+
+rates as (
+
+    select * from {{ ref('fx_rates_daily') }}
+
 )
 
 select
@@ -44,6 +50,8 @@ select
     lines.quantity,
     lines.unit_price,
     lines.quantity * lines.unit_price as amount_local,
+    -- Rates are units of the local currency per one JPY, so converting to JPY divides.
+    cast(lines.quantity * lines.unit_price / rates.rate as decimal(18, 2)) as amount_jpy,
     parts.list_price_jpy
 from lines
 inner join orders on lines.order_id = orders.order_id
@@ -58,3 +66,7 @@ left join parts
         and orders.ordered_at >= parts.valid_from
         and (parts.valid_to is null or orders.ordered_at < parts.valid_to)
 left join customers on orders.customer_id = customers.customer_id
+left join rates
+    on
+        cast(orders.ordered_at as date) = rates.date_day
+        and orders.currency_code = rates.currency_code
