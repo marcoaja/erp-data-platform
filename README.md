@@ -23,6 +23,9 @@ cp .env.example .env                       # placeholder values work as-is
 uv sync                                    # installs Python 3.12 and dependencies
 docker compose up -d --wait postgres       # starts Postgres 17 on 127.0.0.1:5432
 uv run --env-file .env erp db ping         # prints the Postgres version
+uv run --env-file .env erp db migrate      # creates the erp schema and the reader role
+uv run --env-file .env erp seed            # 30 dealers, 500 parts, 2,000 customers, 90 days of orders
+uv run --env-file .env erp simulate --ticks 10   # or --interval 5 to keep the ERP changing
 ```
 
 Checks:

@@ -37,6 +37,7 @@ compose.yaml  Dockerfile  README.md  CLAUDE.md
 src/erp_platform/
   cli.py            the `erp` console script
   config.py         Settings loaded from the environment
+  db.py             connect(): owner or read-only Postgres connection
   storage.py        one filesystem interface for local paths and s3:// URIs
   erp/              migrations/*.sql, migrate.py, seed.py, simulate.py
   ingestion/        extract.py, fx.py
@@ -58,7 +59,7 @@ plans/
 |---|---|---|
 | `erp db ping` | Connects and prints the Postgres version | 0 |
 | `erp db migrate` | Applies pending SQL migrations in order | 1 |
-| `erp seed` | Loads initial master data and 90 days of order history; each seeding step is a no-op when its table already has rows | 1 |
+| `erp seed [--seed N]` | Loads initial master data and 90 days of order history; each seeding step is a no-op when its table already has rows | 1 |
 | `erp simulate --ticks N` / `--interval S` | Runs N business ticks and exits, or loops forever with S seconds between ticks | 1 |
 | `erp extract` | Writes changed rows to the raw layer and advances the watermark | 2 |
 | `erp transform` | Runs `dbt build` for the configured target | 3 |
@@ -104,6 +105,8 @@ Postgres schema `erp`. Conventions for every table:
 | `sales_orders` | `order_number` unique, `dealer_id` fk, `customer_id` fk, `status` (placed, confirmed, shipped, delivered, cancelled), `currency_code`, `ordered_at`, `shipped_at`, `delivered_at` |
 | `order_lines` | `order_id` fk, `line_number`, `part_id` fk, `quantity` > 0, `unit_price numeric(14,2)` in the order's currency; unique (`order_id`, `line_number`) |
 | `inventory` (stage 4) | `dealer_id` fk, `part_id` fk, `quantity_on_hand` ≥ 0, `reorder_point`; unique (`dealer_id`, `part_id`) |
+
+`sales_orders.order_number` defaults from `erp.order_number_seq` (`SO-0000001`). Order timestamps are constrained: `shipped_at >= ordered_at`, and `delivered_at` requires `shipped_at` and is not earlier. Seeded rows carry historical `created_at`/`updated_at`: master data 90 days ago, orders at their business timestamps.
 
 Schema changes ship as numbered SQL files in `src/erp_platform/erp/migrations/`, applied by `erp db migrate` and recorded in `erp.schema_migrations`.
 
