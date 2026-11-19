@@ -1,6 +1,6 @@
 # ERP Parts & Sales Data Platform
 
-Portfolio data-engineering project. A simulated ERP (Postgres) feeds an incremental pipeline into a dbt-modelled warehouse (DuckDB first, Snowflake last), and a reconciliation step proves the warehouse matches the source.
+Data-engineering project. A simulated ERP (Postgres) feeds an incremental pipeline into a dbt-modelled warehouse (DuckDB first, Snowflake last), and a reconciliation step proves the warehouse matches the source.
 
 ## Where things are
 

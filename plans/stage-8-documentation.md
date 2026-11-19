@@ -6,7 +6,7 @@
 
 **Human prerequisites.** The public dashboard URL, and the demo video and screenshots from stage 7 if that stage ran.
 
-Write for a hiring engineer skimming the repository. Lead each document with its conclusion. State limitations plainly; a reviewer trusts a project that names its own gaps.
+Write for an engineer skimming the repository. Lead each document with its conclusion. State limitations plainly; a reviewer trusts a project that names its own gaps.
 
 ## Tasks
 
